@@ -41,29 +41,10 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
   /// The closure that constructs a SwiftUI view from a resolved engine node.
   public let builder: ComponentViewBuilder
 
-  private let storedSchema: Schema?
-  private let storedDefinition: ComponentDefinition?
-
   /// Canonical JSON-Schema-independent component definition.
-  public var definition: ComponentDefinition {
-    if let storedDefinition {
-      return storedDefinition
-    }
-    return CatalogJSONSchemaCodec.componentDefinition(
-      from: name,
-      schema: storedSchema?.jsonValue ?? .object([:]),
-      allowedParents: allowedParents,
-      allowedChildren: allowedChildren,
-      metadata: metadata
-    )
-  }
+  public let definition: ComponentDefinition
 
-  /// Whether this component implementation is backed directly by a canonical
-  /// ``ComponentDefinition``.
-  public var hasCanonicalDefinition: Bool {
-    guard let storedDefinition, storedSchema == nil else { return false }
-    return storedDefinition.isCanonical
-  }
+  private let storedSchema: Schema?
 
   /// The JSON Schema validating the component's properties.
   public var schema: Schema {
@@ -75,29 +56,15 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
 
   /// Creates a new component implementation purely from a canonical ``ComponentDefinition`` and
   /// SwiftUI view builder without requiring `import JSONSchema`.
-  ///
-  /// - Parameters:
-  ///   - definition: The canonical component definition.
-  ///   - builder: The view builder closure constructing the component's SwiftUI view.
   public init<Content: View>(
     definition: ComponentDefinition,
     builder: @escaping @MainActor (Node) -> Content
   ) {
-    self.name = definition.name
-    self.allowedParents = definition.allowedParents
-    self.allowedChildren = definition.allowedChildren
-    self.metadata = definition.metadata
-    self.storedDefinition = definition
-    self.storedSchema = nil
-    self.builder = { node in AnyView(builder(node)) }
+    self.init(definition: definition, builder: { node in AnyView(builder(node)) })
   }
 
   /// Creates a new component implementation from a canonical ``ComponentDefinition`` and
   /// type-erased view builder.
-  ///
-  /// - Parameters:
-  ///   - definition: The canonical component definition.
-  ///   - builder: The type-erased view builder closure.
   public init(
     definition: ComponentDefinition,
     builder: @escaping ComponentViewBuilder
@@ -106,20 +73,12 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
     self.allowedParents = definition.allowedParents
     self.allowedChildren = definition.allowedChildren
     self.metadata = definition.metadata
-    self.storedDefinition = definition
+    self.definition = definition
     self.storedSchema = nil
     self.builder = builder
   }
 
   /// Creates a new component implementation with a type name, schema, and view builder.
-  ///
-  /// - Parameters:
-  ///   - name: The component type name.
-  ///   - schema: The JSON Schema validating the component's properties.
-  ///   - allowedParents: Optional list of allowed parent component names.
-  ///   - allowedChildren: Optional list of allowed child component names.
-  ///   - metadata: Optional component metadata dictionary.
-  ///   - builder: The view builder closure constructing the component's SwiftUI view.
   public init<Content: View>(
     name: String,
     schema: Schema,
@@ -128,26 +87,57 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
     metadata: [String: JSONValue]? = nil,
     builder: @escaping @MainActor (Node) -> Content
   ) {
+    self.init(
+      name: name,
+      schema: schema,
+      allowedParents: allowedParents,
+      allowedChildren: allowedChildren,
+      metadata: metadata,
+      builder: { node in AnyView(builder(node)) }
+    )
+  }
+
+  /// Creates a new component implementation from a legacy schema and type-erased view builder.
+  private init(
+    name: String,
+    schema: Schema,
+    allowedParents: [String]?,
+    allowedChildren: [String]?,
+    metadata: [String: JSONValue]?,
+    builder: @escaping ComponentViewBuilder
+  ) {
     self.name = name
     self.allowedParents = allowedParents
     self.allowedChildren = allowedChildren
     self.metadata = metadata
     self.storedSchema = schema
-    self.storedDefinition = nil
-    self.builder = { node in AnyView(builder(node)) }
+    self.definition = CatalogJSONSchemaCodec.componentDefinition(
+      from: name,
+      schema: schema.jsonValue,
+      allowedParents: allowedParents,
+      allowedChildren: allowedChildren,
+      metadata: metadata
+    )
+    self.builder = builder
   }
 
   /// Creates a new component implementation from an existing API definition and view builder.
-  ///
-  /// - Parameters:
-  ///   - api: The component API definition conforming to ``ComponentAPI``.
-  ///   - builder: The view builder closure constructing the component's SwiftUI view.
   public init<Content: View>(
     api: any ComponentAPI,
     builder: @escaping @MainActor (Node) -> Content
   ) {
-    if api.hasCanonicalDefinition {
-      self.init(definition: api.definition, builder: builder)
+    self.init(api: api, builder: { node in AnyView(builder(node)) })
+  }
+
+  /// Creates a new component implementation from an existing API definition and erased view
+  /// builder.
+  public init(
+    api: any ComponentAPI,
+    builder: @escaping ComponentViewBuilder
+  ) {
+    let def = api.definition
+    if def.isCanonical {
+      self.init(definition: def, builder: builder)
     } else {
       self.init(
         name: api.name,
@@ -157,36 +147,6 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
         metadata: api.metadata,
         builder: builder
       )
-    }
-  }
-
-  /// Creates a new component implementation from an existing API definition and erased view
-  /// builder.
-  ///
-  /// - Parameters:
-  ///   - api: The component API definition conforming to ``ComponentAPI``.
-  ///   - builder: The type-erased view builder closure.
-  public init(
-    api: any ComponentAPI,
-    builder: @escaping ComponentViewBuilder
-  ) {
-    if api.hasCanonicalDefinition {
-      let definition = api.definition
-      self.name = definition.name
-      self.allowedParents = definition.allowedParents
-      self.allowedChildren = definition.allowedChildren
-      self.metadata = definition.metadata
-      self.storedDefinition = definition
-      self.storedSchema = nil
-      self.builder = builder
-    } else {
-      self.name = api.name
-      self.allowedParents = api.allowedParents
-      self.allowedChildren = api.allowedChildren
-      self.metadata = api.metadata
-      self.storedSchema = api.schema
-      self.storedDefinition = nil
-      self.builder = builder
     }
   }
 }

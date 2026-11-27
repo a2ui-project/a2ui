@@ -55,8 +55,8 @@ struct ComponentDefinitionSwiftUITests {
       Text(node.string(for: "label") ?? "")
     }
 
-    #expect(cardImplementation.hasCanonicalDefinition)
-    #expect(badgeImplementation.hasCanonicalDefinition)
+    #expect(cardImplementation.definition.isCanonical)
+    #expect(badgeImplementation.definition.isCanonical)
     #expect(badgeImplementation.definition.isCheckable)
 
     let catalog = Catalog(
@@ -67,8 +67,8 @@ struct ComponentDefinitionSwiftUITests {
 
     // Erasing to AnyCatalog preserves canonical definitions without compiling JSON Schema.
     let erased = catalog.eraseToAnyCatalog()
-    #expect(erased.components["BannerCard"]?.hasCanonicalDefinition == true)
-    #expect(erased.components["StatusBadge"]?.hasCanonicalDefinition == true)
+    #expect(erased.components["BannerCard"]?.definition.isCanonical == true)
+    #expect(erased.components["StatusBadge"]?.definition.isCanonical == true)
 
     let processor = MessageProcessor(catalog: catalog, validationConfig: .strict)
     let payload: JSONValue = [

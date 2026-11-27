@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UIJSON
 import Combine
 import Foundation
 import OrderedCollections
@@ -36,9 +35,11 @@ public final class NodeResolver: Sendable {
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
 
-  private enum PropertyDescriptor {
-    case canonical(TypeDefinition, types: [String: TypeDefinition])
-    case legacy(JSONValue)
+  private struct PropertyDescriptor {
+    let type: TypeDefinition
+    let types: [String: TypeDefinition]
+
+    static let untyped = PropertyDescriptor(type: .any(nullable: true), types: [:])
   }
 
   private struct CachedComponentSchema {
@@ -985,17 +986,6 @@ public final class NodeResolver: Sendable {
     "hidden": .boolean(dynamic: true),
   ]
 
-  /// The schema of the accessibility mixin: `AccessibilityAttributes`.
-  private static let accessibilityMixinSchema: JSONValue = .object([
-    "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
-  ])
-
-  /// The schema of the checks mixin: a list of `CheckRule`.
-  private static let checksMixinSchema: JSONValue = .object([
-    "type": .string("array"),
-    "items": .object(["$ref": .string(A2UICommonSchema.v10URI(for: "CheckRule"))]),
-  ])
-
   private func cachedSchema(
     for type: String,
     catalogID: String?,
@@ -1006,57 +996,33 @@ public final class NodeResolver: Sendable {
       return cached
     }
 
-    if let componentAPI = catalog?.components[type], componentAPI.hasCanonicalDefinition {
-      let definition = componentAPI.definition
-      let localTypes = catalog?.types ?? [:]
-      var descriptors: [String: PropertyDescriptor] = [:]
+    let localTypes = catalog?.types ?? [:]
+    var descriptors: [String: PropertyDescriptor] = [:]
+    if let definition = catalog?.components[type]?.definition {
       for param in definition.parameters {
-        descriptors[param.name] = .canonical(param.type, types: localTypes)
+        descriptors[param.name] = PropertyDescriptor(type: param.type, types: localTypes)
       }
       if descriptors["checks"] == nil && definition.isCheckable {
-        descriptors["checks"] = .canonical(.array(items: .checkRule()), types: [:])
+        descriptors["checks"] = PropertyDescriptor(
+          type: .array(items: .checkRule()),
+          types: [:]
+        )
       }
-      if descriptors["accessibility"] == nil {
-        descriptors["accessibility"] = .canonical(.accessibility(), types: [:])
-      }
-      if descriptors["@accessibility"] == nil {
-        descriptors["@accessibility"] = .canonical(.accessibility(), types: [:])
-      }
-      if descriptors["@checks"] == nil {
-        descriptors["@checks"] = .canonical(.array(items: .checkRule()), types: [:])
-      }
-      let entry = CachedComponentSchema(
-        descriptors: descriptors,
-        classifiedTypes: descriptors.mapValues { classifyDescriptor($0) }
-      )
-      schemaCache[cacheKey] = entry
-      return entry
     }
-
-    let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
-    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
-    // The shared v1.0 `Checkable` definition declares only `@checks`. A v0.9 component, or a
-    // v1.0 component sent with the legacy bare key, still carries its checks as `checks`, so a
-    // checkable component that declares no `checks` of its own accepts that key as the mixin.
-    if propertiesSchema["checks"] == nil, let prefixedChecks = propertiesSchema["@checks"] {
-      propertiesSchema["checks"] = prefixedChecks
+    // `accessibility` comes from `ComponentCommon`, and v1.0 keeps mixins under `@accessibility`
+    // and `@checks` apart from any component property with the bare name.
+    if descriptors["accessibility"] == nil {
+      descriptors["accessibility"] = PropertyDescriptor(type: .accessibility(), types: [:])
     }
-    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
-    if propertiesSchema["accessibility"] == nil {
-      propertiesSchema["accessibility"] = Self.accessibilityMixinSchema
+    if descriptors["@accessibility"] == nil {
+      descriptors["@accessibility"] = PropertyDescriptor(type: .accessibility(), types: [:])
     }
-    // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
-    // `@checks`, apart from any `accessibility` or `checks` property of its own.
-    if propertiesSchema["@accessibility"] == nil {
-      propertiesSchema["@accessibility"] = Self.accessibilityMixinSchema
+    if descriptors["@checks"] == nil {
+      descriptors["@checks"] = PropertyDescriptor(type: .array(items: .checkRule()), types: [:])
     }
-    if propertiesSchema["@checks"] == nil {
-      propertiesSchema["@checks"] = Self.checksMixinSchema
-    }
-    let descriptors = propertiesSchema.mapValues { PropertyDescriptor.legacy($0) }
     let entry = CachedComponentSchema(
       descriptors: descriptors,
-      classifiedTypes: propertiesSchema.mapValues { classifySchema($0) }
+      classifiedTypes: descriptors.mapValues { classifyTypeDefinition($0.type, types: $0.types) }
     )
     schemaCache[cacheKey] = entry
     return entry
@@ -1182,7 +1148,7 @@ public final class NodeResolver: Sendable {
         resolvedProperties[key] = preResolved
         continue
       }
-      let propDescriptor = descriptors[key] ?? .legacy(.boolean(true))
+      let propDescriptor = descriptors[key] ?? .untyped
       let propType = cached.classifiedTypes[key] ?? .standard
 
       if let resolvedVal = resolveProperty(
@@ -1399,29 +1365,20 @@ public final class NodeResolver: Sendable {
     case standard
   }
 
-  private static let refPropertyTypes: [String: PropertyType] = [
-    "DynamicBoolean": .dynamicBoolean,
-    "DynamicString": .dynamicString,
-    "DynamicNumber": .dynamicNumber,
-    "DynamicValue": .dynamicValue,
-    "DynamicStringList": .dynamicStringList,
-    "DataBinding": .dynamicValue,
-    "FunctionCall": .dynamicValue,
-    "CheckRule": .checks,
-    "Checkable": .checks,
-    "Action": .action,
-    "ChildList": .childList,
-    "Child": .componentID,
-    "ComponentId": .componentID,
-  ]
-
-  private func classifyDescriptor(_ descriptor: PropertyDescriptor) -> PropertyType {
-    switch descriptor {
-    case .canonical(let typeDef, let types):
-      return classifyTypeDefinition(typeDef, types: types)
-    case .legacy(let schemaJSON):
-      return classifySchema(schemaJSON)
+  private func dereference(
+    _ typeDef: TypeDefinition,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String> = []
+  ) -> TypeDefinition {
+    guard case .ref(let refName, _) = typeDef.kind,
+      !visitedRefs.contains(refName),
+      let target = types[refName]
+    else {
+      return typeDef
     }
+    var nextVisited = visitedRefs
+    nextVisited.insert(refName)
+    return dereference(target, types: types, visitedRefs: nextVisited)
   }
 
   private func classifyTypeDefinition(
@@ -1429,16 +1386,16 @@ public final class NodeResolver: Sendable {
     types: [String: TypeDefinition],
     visitedRefs: Set<String> = []
   ) -> PropertyType {
-    switch typeDef {
-    case .string(let dynamic, _, _, _, _, _, _, _, _):
+    switch typeDef.kind {
+    case .string(let dynamic, _, _, _, _, _):
       return dynamic ? .dynamicString : .standard
-    case .number(let dynamic, _, _, _, _, _, _):
+    case .number(let dynamic, _, _, _):
       return dynamic ? .dynamicNumber : .number
-    case .integer(let dynamic, _, _, _, _, _, _):
+    case .integer(let dynamic, _, _, _):
       return dynamic ? .dynamicNumber : .integer
-    case .boolean(let dynamic, _, _, _, _):
+    case .boolean(let dynamic, _):
       return dynamic ? .dynamicBoolean : .standard
-    case .enum(_, let valueType, let dynamic, _, _, _, _):
+    case .enum(_, let valueType, let dynamic, _):
       if dynamic {
         switch valueType {
         case .string: return .dynamicString
@@ -1449,7 +1406,7 @@ public final class NodeResolver: Sendable {
       return valueType == .number ? .number : .standard
     case .const:
       return .standard
-    case .any(let dynamic, _, _, _, _, _):
+    case .any(let dynamic, _, _):
       return dynamic ? .dynamicValue : .standard
     case .dataBinding, .functionCall:
       return .dynamicValue
@@ -1463,9 +1420,10 @@ public final class NodeResolver: Sendable {
       return .checks
     case .accessibility:
       return .standard
-    case .array(let dynamic, let items, _, _, _, _, _, _, _):
+    case .array(let dynamic, let items, _, _, _, _):
       if dynamic {
-        if case .string = items {
+        if let items, case .string = dereference(items, types: types, visitedRefs: visitedRefs).kind
+        {
           return .dynamicStringList
         }
         return .dynamicValue
@@ -1476,16 +1434,16 @@ public final class NodeResolver: Sendable {
         return .checks
       }
       return .standard
-    case .object(let dynamic, _, _, _, _, _, _, _):
+    case .object(let dynamic, _, _, _, _):
       return dynamic ? .dynamicValue : .standard
-    case .union(let variants, _, let dynamic, _, _, _, _):
+    case .union(let variants, _, let dynamic, _):
       return classifyUnionTypeDefinitions(
         variants,
         isDynamic: dynamic,
         types: types,
         visitedRefs: visitedRefs
       )
-    case .ref(let refName, _, _, _, _):
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else {
         return .standard
       }
@@ -1493,8 +1451,20 @@ public final class NodeResolver: Sendable {
       nextVisited.insert(refName)
       return classifyTypeDefinition(target, types: types, visitedRefs: nextVisited)
     case .rawJSONSchema(let raw):
-      return classifySchema(raw)
+      return classifyRawNumericFallback(raw)
     }
+  }
+
+  private func classifyRawNumericFallback(_ raw: JSONValue) -> PropertyType {
+    if let type = raw["type"]?.stringValue {
+      if type == "number" { return .number }
+      if type == "integer" { return .integer }
+    } else if let types = raw["type"]?.arrayValue {
+      let names = types.compactMap(\.stringValue)
+      if names.contains("number") { return .number }
+      if names.contains("integer") { return .integer }
+    }
+    return .standard
   }
 
   private func classifyUnionTypeDefinitions(
@@ -1509,7 +1479,8 @@ public final class NodeResolver: Sendable {
     var hasUntypedLiteral = false
 
     for variant in variants {
-      let classified = classifyTypeDefinition(variant, types: types, visitedRefs: visitedRefs)
+      let resolved = dereference(variant, types: types, visitedRefs: visitedRefs)
+      let classified = classifyTypeDefinition(resolved, types: types, visitedRefs: visitedRefs)
       switch classified {
       case .dynamicBoolean, .dynamicString, .dynamicNumber, .dynamicValue, .dynamicStringList:
         if firstDynamic == nil { firstDynamic = classified }
@@ -1528,17 +1499,27 @@ public final class NodeResolver: Sendable {
       case .standard:
         break
       }
-      switch variant {
+      switch resolved.kind {
       case .string:
         literalKinds.insert("string")
       case .boolean:
         literalKinds.insert("boolean")
-      case .enum(_, let valueType, _, _, _, _, _):
+      case .enum(_, let valueType, _, _):
         literalKinds.insert(valueType.rawValue)
       case .object, .accessibility:
         literalKinds.insert("object")
       case .array:
         literalKinds.insert("array")
+      case .rawJSONSchema(let raw):
+        if raw["type"]?.stringValue == "null" {
+          continue
+        } else if let t = raw["type"]?.stringValue {
+          literalKinds.insert(t)
+        } else if let arr = raw["type"]?.arrayValue {
+          literalKinds.formUnion(arr.compactMap(\.stringValue).filter { $0 != "null" })
+        } else {
+          hasUntypedLiteral = true
+        }
       default:
         hasUntypedLiteral = true
       }
@@ -1561,30 +1542,34 @@ public final class NodeResolver: Sendable {
     types: [String: TypeDefinition],
     visitedRefs: Set<String> = []
   ) -> PropertyDescriptor {
-    switch typeDef {
-    case .array(_, let items, _, _, _, _, _, _, _):
-      if let items {
-        return .canonical(items, types: types)
-      }
-      return .canonical(.any(), types: types)
-    case .ref(let refName, _, _, _, _):
+    switch typeDef.kind {
+    case .array(_, let items, _, _, _, _):
+      return PropertyDescriptor(type: items ?? .any(nullable: true), types: types)
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else {
-        return .canonical(.any(), types: types)
+        return .untyped
       }
       var nextVisited = visitedRefs
       nextVisited.insert(refName)
       return canonicalArrayItemDescriptor(for: target, types: types, visitedRefs: nextVisited)
-    case .union(let variants, _, _, _, _, _, _):
+    case .union(let variants, _, _, _):
       for variant in variants {
-        if case .array(_, let items, _, _, _, _, _, _, _) = variant, let items {
-          return .canonical(items, types: types)
+        let resolved = dereference(variant, types: types, visitedRefs: visitedRefs)
+        if case .array(_, let items, _, _, _, _) = resolved.kind, let items {
+          return PropertyDescriptor(type: items, types: types)
         }
       }
-      return .canonical(.any(), types: types)
+      return .untyped
     case .rawJSONSchema(let raw):
-      return .legacy(raw["items"] ?? .boolean(true))
+      if let rawItems = raw["items"] {
+        return PropertyDescriptor(
+          type: CatalogJSONSchemaCodec.translateStandalonePropertyType(rawItems),
+          types: types
+        )
+      }
+      return .untyped
     default:
-      return .canonical(.any(), types: types)
+      return .untyped
     }
   }
 
@@ -1593,38 +1578,29 @@ public final class NodeResolver: Sendable {
     types: [String: TypeDefinition],
     visitedRefs: Set<String> = []
   ) -> (properties: [String: PropertyDescriptor], additional: PropertyDescriptor?) {
-    switch typeDef {
-    case .object(_, let props, let additional, _, _, _, _, _):
+    switch typeDef.kind {
+    case .object(_, let props, let additional, _, _):
       var map: [String: PropertyDescriptor] = [:]
       for prop in props {
-        map[prop.name] = .canonical(prop.type, types: types)
+        map[prop.name] = PropertyDescriptor(type: prop.type, types: types)
       }
-      let extra: PropertyDescriptor?
-      if case .typed(let extraType) = additional {
-        extra = .canonical(extraType, types: types)
-      } else {
-        extra = nil
-      }
+      let extra = additional.typedSchema.map { PropertyDescriptor(type: $0, types: types) }
       return (map, extra)
     case .accessibility:
       let map = Self.canonicalAccessibilityProperties.mapValues {
-        PropertyDescriptor.canonical($0, types: [:])
+        PropertyDescriptor(type: $0, types: [:])
       }
       return (map, nil)
-    case .union(let variants, _, _, _, _, _, _):
+    case .union(let variants, _, _, _):
       var merged: [String: PropertyDescriptor] = [:]
       var extra: PropertyDescriptor?
       for variant in variants {
         let sub = canonicalObjectDescriptors(for: variant, types: types, visitedRefs: visitedRefs)
-        for (k, v) in sub.properties {
-          merged[k] = v
-        }
-        if extra == nil {
-          extra = sub.additional
-        }
+        for (k, v) in sub.properties { merged[k] = v }
+        if extra == nil { extra = sub.additional }
       }
       return (merged, extra)
-    case .ref(let refName, _, _, _, _):
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else {
         return ([:], nil)
       }
@@ -1632,133 +1608,19 @@ public final class NodeResolver: Sendable {
       nextVisited.insert(refName)
       return canonicalObjectDescriptors(for: target, types: types, visitedRefs: nextVisited)
     case .rawJSONSchema(let raw):
-      let props = extractPropertiesSchema(from: raw).mapValues { PropertyDescriptor.legacy($0) }
-      return (props, nil)
+      var map: [String: PropertyDescriptor] = [:]
+      if let props = raw["properties"]?.objectValue {
+        for (k, v) in props {
+          map[k] = PropertyDescriptor(
+            type: CatalogJSONSchemaCodec.translateStandalonePropertyType(v),
+            types: types
+          )
+        }
+      }
+      return (map, nil)
     default:
       return ([:], nil)
     }
-  }
-
-  private func classifySchema(_ schemaJSON: JSONValue) -> PropertyType {
-    if let ref = schemaJSON["$ref"]?.stringValue,
-      let typeName = ref.split(separator: "/").last.map(String.init),
-      let matched = Self.refPropertyTypes[typeName]
-    {
-      return matched
-    }
-    if let composite = classifyCompositeSchema(schemaJSON) {
-      return composite
-    }
-    if let items = schemaJSON["items"], classifySchema(items) == .checks {
-      return .checks
-    }
-    return classifyNumericTypeSchema(schemaJSON)
-  }
-
-  private func classifyCompositeSchema(_ schemaJSON: JSONValue) -> PropertyType? {
-    for keyword in ["oneOf", "anyOf"] {
-      guard let subSchemas = schemaJSON[keyword]?.arrayValue else { continue }
-      if let classified = classifyUnionSchemas(subSchemas) {
-        return classified
-      }
-    }
-    if let allOf = schemaJSON["allOf"]?.arrayValue {
-      for sub in allOf {
-        let type = classifySchema(sub)
-        if type != .standard { return type }
-      }
-    }
-    return nil
-  }
-
-  private func classifyUnionSchemas(_ subSchemas: [JSONValue]) -> PropertyType? {
-    var firstDynamic: PropertyType?
-    var firstNonDynamicSpecial: PropertyType?
-    var nonNullLiteralTypes: Set<String> = []
-    var hasUntypedLiteralBranch = false
-
-    for sub in subSchemas {
-      let classified = classifySchema(sub)
-      switch classified {
-      case .dynamicBoolean, .dynamicString, .dynamicNumber, .dynamicValue,
-        .dynamicStringList:
-        if firstDynamic == nil { firstDynamic = classified }
-        continue
-      case .checks, .action, .childList, .componentID:
-        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = classified }
-        continue
-      case .number:
-        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .number }
-        nonNullLiteralTypes.insert("number")
-        continue
-      case .integer:
-        if firstNonDynamicSpecial == nil { firstNonDynamicSpecial = .integer }
-        nonNullLiteralTypes.insert("integer")
-        continue
-      case .standard:
-        break
-      }
-      if sub["type"]?.stringValue == "null" { continue }
-      if let typeStr = sub["type"]?.stringValue {
-        nonNullLiteralTypes.insert(typeStr)
-      } else if let types = sub["type"]?.arrayValue {
-        let strs = types.compactMap(\.stringValue).filter { $0 != "null" }
-        nonNullLiteralTypes.formUnion(strs)
-      } else if sub["properties"] != nil {
-        nonNullLiteralTypes.insert("object")
-      } else {
-        hasUntypedLiteralBranch = true
-      }
-    }
-
-    guard let dynamicType = firstDynamic else {
-      return firstNonDynamicSpecial
-    }
-    if dynamicType != .dynamicValue { return dynamicType }
-    if !hasUntypedLiteralBranch && !nonNullLiteralTypes.isEmpty {
-      if nonNullLiteralTypes == ["boolean"] { return .dynamicBoolean }
-      if nonNullLiteralTypes == ["string"] { return .dynamicString }
-      if nonNullLiteralTypes.isSubset(of: ["number", "integer"]) { return .dynamicNumber }
-    }
-    return .dynamicValue
-  }
-
-  private func classifyNumericTypeSchema(_ schemaJSON: JSONValue) -> PropertyType {
-    if let type = schemaJSON["type"]?.stringValue {
-      if type == "number" { return .number }
-      if type == "integer" { return .integer }
-    } else if let types = schemaJSON["type"]?.arrayValue {
-      let typeStrings = types.compactMap(\.stringValue)
-      if typeStrings.contains("number") { return .number }
-      if typeStrings.contains("integer") { return .integer }
-    }
-    return .standard
-  }
-
-  private func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
-    var result: [String: JSONValue] = [:]
-    if let props = schemaJSON["properties"]?.objectValue {
-      for (k, v) in props {
-        result[k] = v
-      }
-    }
-    if let ref = schemaJSON["$ref"]?.stringValue,
-      let def = lookupCommonDef(ref: ref)
-    {
-      result.merge(extractPropertiesSchema(from: def)) { _, new in new }
-    }
-    for keyword in ["allOf", "oneOf", "anyOf"] {
-      for subSchema in schemaJSON[keyword]?.arrayValue ?? [] {
-        result.merge(extractPropertiesSchema(from: subSchema)) { _, new in new }
-      }
-    }
-    return result
-  }
-
-  private func lookupCommonDef(ref: String) -> JSONValue? {
-    let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
-    return A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
-      ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
   }
 
   // MARK: - Property Resolution
@@ -1916,24 +1778,12 @@ public final class NodeResolver: Sendable {
       )
     }
     if let object = value.objectValue {
-      let objectDescriptors: [String: PropertyDescriptor]
-      let additionalDescriptor: PropertyDescriptor?
-      switch descriptor {
-      case .canonical(let typeDef, let types):
-        let extracted = canonicalObjectDescriptors(for: typeDef, types: types)
-        objectDescriptors = extracted.properties
-        additionalDescriptor = extracted.additional
-      case .legacy(let schema):
-        objectDescriptors = extractPropertiesSchema(from: schema).mapValues {
-          PropertyDescriptor.legacy($0)
-        }
-        additionalDescriptor = nil
-      }
-      if !objectDescriptors.isEmpty || additionalDescriptor != nil {
+      let extracted = canonicalObjectDescriptors(for: descriptor.type, types: descriptor.types)
+      if !extracted.properties.isEmpty || extracted.additional != nil {
         return resolveStandardObjectProperty(
           object: object,
-          objectDescriptors: objectDescriptors,
-          additionalDescriptor: additionalDescriptor,
+          objectDescriptors: extracted.properties,
+          additionalDescriptor: extracted.additional,
           basePath: basePath,
           index: index,
           instanceSuffix: instanceSuffix,
@@ -1967,14 +1817,11 @@ public final class NodeResolver: Sendable {
     checks: [ResolvedCheck],
     recurseIntoChildren: Bool = true
   ) -> (any Resolved)? {
-    let itemDescriptor: PropertyDescriptor
-    switch descriptor {
-    case .canonical(let typeDef, let types):
-      itemDescriptor = canonicalArrayItemDescriptor(for: typeDef, types: types)
-    case .legacy(let schema):
-      itemDescriptor = .legacy(schema["items"] ?? .boolean(true))
-    }
-    let itemType = classifyDescriptor(itemDescriptor)
+    let itemDescriptor = canonicalArrayItemDescriptor(
+      for: descriptor.type,
+      types: descriptor.types
+    )
+    let itemType = classifyTypeDefinition(itemDescriptor.type, types: itemDescriptor.types)
     if itemType == .checks {
       return resolveChecks(rawValue, basePath: basePath, index: index, data: data)
     }
@@ -2025,9 +1872,8 @@ public final class NodeResolver: Sendable {
     var resolvedObject: [String: any Resolved] = [:]
     let bindingKey = atLeastV10 ? "@path" : "path"
     for (key, propertyValue) in object {
-      let nestedDescriptor =
-        objectDescriptors[key] ?? additionalDescriptor ?? .legacy(.boolean(true))
-      let classified = classifyDescriptor(nestedDescriptor)
+      let nestedDescriptor = objectDescriptors[key] ?? additionalDescriptor ?? .untyped
+      let classified = classifyTypeDefinition(nestedDescriptor.type, types: nestedDescriptor.types)
       let nestedPropType: PropertyType =
         (classified == .standard && propertyValue.objectValue?[bindingKey] != nil)
         ? .dynamicValue : classified

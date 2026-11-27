@@ -330,17 +330,15 @@ public final class MessageProcessor: ObservableObject {
     if !functionsDictionary.isEmpty {
       catalogDictionary["functions"] = .object(functionsDictionary)
     } else if !version.isAtLeastV10, !catalog.functions.isEmpty {
-      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
+      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog, version: version))
     }
 
     if !version.isAtLeastV10 {
-      if catalog.hasCanonicalSurfaceProperties, let surfaceProperties = catalog.surfaceProperties {
-        let themeObj = CatalogJSONSchemaCodec.surfacePropertiesJSONSchema(
+      if let surfaceProperties = catalog.surfaceProperties, surfaceProperties.isCanonical {
+        let themeObj = CatalogJSONSchemaCodec.inlineSurfacePropertiesJSONSchema(
           surfaceProperties,
           version: version,
-          localTypes: catalog.types,
-          useAbsoluteCommonURIs: false,
-          inlineLocalTypes: true
+          localTypes: catalog.types
         )
         catalogDictionary["theme"] = themeObj["properties"] ?? themeObj
       } else if let themeSchema = catalog.themeSchema {
@@ -361,20 +359,11 @@ public final class MessageProcessor: ObservableObject {
         ),
         "anyFunction": inlineCatalogUnion(of: functionsDictionary.keys, in: "functions"),
       ]
-      if !catalog.types.isEmpty {
-        let catalogJSON = CatalogJSONSchemaCodec.toJSONSchema(
-          CatalogModel(
-            catalogID: catalog.id,
-            protocolVersion: version.rawValue,
-            types: catalog.types
-          ),
-          protocolVersion: version
-        )
-        if let typeDefs = catalogJSON["$defs"]?.objectValue {
-          for (name, schema) in typeDefs where name != "anyComponent" && name != "anyFunction" {
-            defs[name] = schema
-          }
-        }
+      for (name, schema) in CatalogJSONSchemaCodec.typeDefsJSONSchema(
+        catalog.types,
+        version: version
+      ) {
+        defs[name] = schema
       }
       catalogDictionary["$defs"] = .object(defs)
     }
@@ -428,14 +417,13 @@ public final class MessageProcessor: ObservableObject {
     version: A2UIProtocolVersion,
     envelopeRef: String
   ) -> JSONValue {
-    if componentAPI.hasCanonicalDefinition {
+    let definition = componentAPI.definition
+    if definition.isCanonical {
       return CatalogJSONSchemaCodec.inlineComponentJSONSchema(
-        componentAPI.definition,
+        definition,
         version: version,
         envelopeRef: envelopeRef,
-        localTypes: catalogTypes,
-        useAbsoluteCommonURIs: false,
-        inlineLocalTypes: !version.isAtLeastV10
+        localTypes: catalogTypes
       )
     }
 
@@ -505,12 +493,11 @@ public final class MessageProcessor: ObservableObject {
     for key in catalog.functions.keys.sorted() where !key.hasPrefix("@") {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
-      if functionAPI.hasCanonicalDefinition {
+      let definition = functionAPI.definition
+      if definition.isCanonical {
         functionsDict[functionAPI.name] = CatalogJSONSchemaCodec.inlineV10FunctionJSONSchema(
-          functionAPI.definition,
-          localTypes: catalog.types,
-          useAbsoluteCommonURIs: false,
-          inlineLocalTypes: false
+          definition,
+          localTypes: catalog.types
         )
       } else {
         functionsDict[functionAPI.name] = buildV10InlineFunction(functionAPI)
@@ -556,18 +543,21 @@ public final class MessageProcessor: ObservableObject {
     return .object(functionDefinition)
   }
 
-  private func generateV09InlineFunctions(_ catalog: AnyCatalog) -> [JSONValue] {
+  private func generateV09InlineFunctions(
+    _ catalog: AnyCatalog,
+    version: A2UIProtocolVersion
+  ) -> [JSONValue] {
     var functionsArray: [JSONValue] = []
     for key in catalog.functions.keys.sorted() {
       guard let functionImplementation = catalog.functions[key] else { continue }
       let functionAPI = functionImplementation.api
-      if functionAPI.hasCanonicalDefinition {
+      let definition = functionAPI.definition
+      if definition.isCanonical {
         functionsArray.append(
           CatalogJSONSchemaCodec.inlineV09FunctionJSONSchema(
-            functionAPI.definition,
-            localTypes: catalog.types,
-            useAbsoluteCommonURIs: false,
-            inlineLocalTypes: true
+            definition,
+            version: version,
+            localTypes: catalog.types
           )
         )
         continue

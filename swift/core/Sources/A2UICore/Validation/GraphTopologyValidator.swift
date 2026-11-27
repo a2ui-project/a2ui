@@ -449,10 +449,18 @@ public enum GraphTopologyValidator {
     types: [String: TypeDefinition] = [:]
   ) -> [Reference] {
     guard let componentAPI else { return [] }
-    if componentAPI.hasCanonicalDefinition {
-      return extractReferences(from: component, definition: componentAPI.definition, types: types)
-    }
-    return extractReferences(from: component, schema: componentAPI.schema.jsonValue)
+    return extractReferences(from: component, definition: componentAPI.definition, types: types)
+  }
+
+  /// Extracts component reference pointers from a component property dictionary and legacy JSON
+  /// Schema.
+  public static func extractReferences(
+    from component: [String: JSONValue],
+    schema: JSONValue? = nil
+  ) -> [Reference] {
+    guard let schema else { return [] }
+    let def = CatalogJSONSchemaCodec.componentDefinition(from: "_Component", schema: schema)
+    return extractReferences(from: component, definition: def)
   }
 
   private static func collectTypeReferences(
@@ -463,26 +471,27 @@ public enum GraphTopologyValidator {
     visitedRefs: Set<String>,
     into result: inout [Reference]
   ) {
-    switch type {
+    switch type.kind {
     case .childList:
       collectChildListReferences(from: value, path: path, into: &result)
     case .child:
       if let childID = value.stringValue {
         result.append((childID, path))
       }
-    case .array(_, let items, _, _, _, _, _, _, _):
+    case .array(_, let items, _, _, _, _):
       guard let items, case .array(let array) = value else { return }
       for (index, item) in array.enumerated() {
+        // Descending into a strict JSON sub-value resets `visitedRefs`.
         collectTypeReferences(
           from: item,
           type: items,
           types: types,
           path: "\(path)[\(index)]",
-          visitedRefs: visitedRefs,
+          visitedRefs: [],
           into: &result
         )
       }
-    case .object(_, let properties, let additionalProperties, _, _, _, _, _):
+    case .object(_, let properties, let additionalProperties, _, _):
       guard case .object(let dict) = value else { return }
       for param in properties {
         guard let propValue = dict[param.name] else { continue }
@@ -491,11 +500,11 @@ public enum GraphTopologyValidator {
           type: param.type,
           types: types,
           path: "\(path).\(param.name)",
-          visitedRefs: visitedRefs,
+          visitedRefs: [],
           into: &result
         )
       }
-      if case .typed(let extraType) = additionalProperties {
+      if let extraType = additionalProperties.typedSchema {
         let declared = Set(properties.map(\.name))
         for (key, propValue) in dict where !declared.contains(key) {
           collectTypeReferences(
@@ -503,12 +512,12 @@ public enum GraphTopologyValidator {
             type: extraType,
             types: types,
             path: "\(path).\(key)",
-            visitedRefs: visitedRefs,
+            visitedRefs: [],
             into: &result
           )
         }
       }
-    case .union(let variants, _, _, _, _, _, _):
+    case .union(let variants, _, _, _):
       for variant in variants {
         var candidateRefs: [Reference] = []
         collectTypeReferences(
@@ -524,7 +533,7 @@ public enum GraphTopologyValidator {
           return
         }
       }
-    case .ref(let refName, _, _, _, _):
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else { return }
       var nextVisited = visitedRefs
       nextVisited.insert(refName)
@@ -537,58 +546,36 @@ public enum GraphTopologyValidator {
         into: &result
       )
     case .rawJSONSchema(let raw):
-      collectSchemaReferences(from: value, schema: raw, path: path, into: &result)
+      if case .array(let array) = value, let itemRaw = raw["items"] {
+        let itemType = CatalogJSONSchemaCodec.translateStandalonePropertyType(itemRaw)
+        for (index, item) in array.enumerated() {
+          collectTypeReferences(
+            from: item,
+            type: itemType,
+            types: types,
+            path: "\(path)[\(index)]",
+            visitedRefs: [],
+            into: &result
+          )
+        }
+      } else if case .object(let dict) = value, let propsObj = raw["properties"]?.objectValue {
+        for (key, propValue) in dict {
+          guard let propRaw = propsObj[key] else { continue }
+          let propType = CatalogJSONSchemaCodec.translateStandalonePropertyType(propRaw)
+          collectTypeReferences(
+            from: propValue,
+            type: propType,
+            types: types,
+            path: "\(path).\(key)",
+            visitedRefs: [],
+            into: &result
+          )
+        }
+      }
     case .string, .number, .integer, .boolean, .enum, .const, .any,
       .dataBinding, .functionCall, .action, .checkRule, .accessibility:
       break
     }
-  }
-
-  /// Extracts component reference pointers from a component property dictionary.
-  public static func extractReferences(
-    from component: [String: JSONValue],
-    schema: JSONValue? = nil
-  ) -> [Reference] {
-    guard let schema else { return [] }
-    var references: [Reference] = []
-    let propertySchemas = extractPropertiesSchema(from: schema)
-    for (key, propertyValue) in component where !nonReferenceKeys.contains(key) {
-      guard let propSchema = propertySchemas[key] else { continue }
-      collectSchemaReferences(
-        from: propertyValue,
-        schema: propSchema,
-        path: key,
-        into: &references
-      )
-    }
-    return references
-  }
-
-  private static func collectSchemaReferences(
-    from value: JSONValue,
-    schema: JSONValue,
-    path: String,
-    into result: inout [Reference]
-  ) {
-    if isChildListSchema(schema) {
-      collectChildListReferences(from: value, path: path, into: &result)
-      return
-    }
-
-    if isSingleChildSchema(schema) {
-      if let childID = value.stringValue {
-        result.append((childID, path))
-      }
-      return
-    }
-
-    // If the schema has an explicit $ref to another type (e.g. DynamicString, Action, CheckRule),
-    // it is definitively not a child component reference.
-    guard schema["$ref"]?.stringValue == nil else {
-      return
-    }
-
-    collectNestedSchemaReferences(from: value, schema: schema, path: path, into: &result)
   }
 
   private static func collectChildListReferences(
@@ -610,102 +597,5 @@ public enum GraphTopologyValidator {
     default:
       break
     }
-  }
-
-  private static func collectNestedSchemaReferences(
-    from value: JSONValue,
-    schema: JSONValue,
-    path: String,
-    into result: inout [Reference]
-  ) {
-    switch value {
-    case .array(let array):
-      guard let itemsSchema = schema["items"] else { break }
-      for (index, item) in array.enumerated() {
-        collectSchemaReferences(
-          from: item,
-          schema: itemsSchema,
-          path: "\(path)[\(index)]",
-          into: &result
-        )
-      }
-    case .object(let dict):
-      let subProperties = extractPropertiesSchema(from: schema)
-      for (key, propValue) in dict {
-        guard let subSchema = subProperties[key] else { continue }
-        collectSchemaReferences(
-          from: propValue,
-          schema: subSchema,
-          path: "\(path).\(key)",
-          into: &result
-        )
-      }
-    default:
-      break
-    }
-  }
-
-  private static func schemaRefName(_ schema: JSONValue) -> String? {
-    if let ref = schema["$ref"]?.stringValue {
-      return ref.split(separator: "/").last.map(String.init)
-    }
-    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
-      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
-      return ref.split(separator: "/").last.map(String.init)
-    }
-    return nil
-  }
-
-  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
-    if schemaRefName(schema) == "ChildList" {
-      return true
-    }
-    if schema["type"]?.stringValue == "array", let items = schema["items"] {
-      if isSingleChildSchema(items) || isChildListSchema(items) {
-        return true
-      }
-    }
-    for combiner in ["oneOf", "anyOf", "allOf"] {
-      if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isChildListSchema($0) })
-      {
-        return true
-      }
-    }
-    return false
-  }
-
-  private static func isSingleChildSchema(_ schema: JSONValue) -> Bool {
-    if let refName = schemaRefName(schema), refName == "Child" || refName == "ComponentId" {
-      return true
-    }
-    for combiner in ["oneOf", "anyOf", "allOf"] {
-      if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isSingleChildSchema($0) })
-      {
-        return true
-      }
-    }
-    return false
-  }
-
-  private static func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
-    var result: [String: JSONValue] = [:]
-    if let props = schemaJSON["properties"]?.objectValue {
-      for (k, v) in props {
-        result[k] = v
-      }
-    }
-    for combiner in ["allOf", "oneOf", "anyOf"] {
-      if let subSchemas = schemaJSON[combiner]?.arrayValue {
-        for subSchema in subSchemas {
-          let subProps = extractPropertiesSchema(from: subSchema)
-          for (k, v) in subProps {
-            result[k] = v
-          }
-        }
-      }
-    }
-    return result
   }
 }

@@ -27,53 +27,41 @@ public enum CatalogJSONSchemaCodec {
   )
 
   private static let untranslatableObjectKeywords: Set<String> = [
-    "patternProperties",
-    "not",
-    "if",
-    "then",
-    "else",
-    "dependentRequired",
-    "dependentSchemas",
-    "propertyNames",
-    "minProperties",
-    "maxProperties",
-    "oneOf",
+    "patternProperties", "not", "if", "then", "else", "dependentRequired", "dependentSchemas",
+    "propertyNames", "minProperties", "maxProperties", "oneOf",
   ]
 
   private static let untranslatableValueKeywords: Set<String> = [
-    "patternProperties",
-    "not",
-    "exclusiveMinimum",
-    "exclusiveMaximum",
-    "multipleOf",
-    "propertyNames",
-    "dependentRequired",
-    "dependentSchemas",
-    "prefixItems",
-    "contains",
-    "minContains",
-    "maxContains",
+    "patternProperties", "not", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+    "propertyNames", "dependentRequired", "dependentSchemas", "prefixItems", "contains",
+    "minContains", "maxContains",
   ]
 
   private static let metadataOnlyKeys: Set<String> = [
-    "title",
-    "description",
-    "default",
-    "deprecated",
-    "examples",
-    "$comment",
+    "title", "description", "default", "deprecated", "x-deprecated-reason", "examples", "$comment",
   ]
 
-  // MARK: - Catalog JSON Schema -> CatalogModel
+  private static let excludedDefKeys: Set<String> = [
+    "anyComponent", "anyFunction", "theme", "CatalogComponentCommon", "ComponentCommon",
+  ]
+
+  private struct DecodeContext {
+    let localDefs: OrderedDictionary<String, JSONValue>
+    let knownTypeNames: Set<String>
+    var visitedRefs: Set<String> = []
+  }
+
+  private struct EncodeContext {
+    let version: A2UIProtocolVersion
+    let localTypes: [String: TypeDefinition]
+    let useAbsoluteCommonURIs: Bool
+    let inlineLocalTypes: Bool
+    var visitedRefs: Set<String> = []
+  }
+
+  // MARK: - Public Catalog JSON Schema <-> CatalogModel
 
   /// Parses a legacy JSON Schema catalog document (v0.9, v0.9.1, or v1.0) into a ``CatalogModel``.
-  ///
-  /// - Parameters:
-  ///   - rawSchema: Raw catalog JSON Schema object.
-  ///   - catalogID: Optional explicit catalog ID override.
-  ///   - protocolVersion: Optional explicit protocol version override.
-  /// - Returns: Canonical ``CatalogModel``.
-  /// - Throws: ``A2UICatalogError`` when the catalog schema is malformed or violates v1.0 rules.
   public static func fromJSONSchema(
     _ rawSchema: JSONValue,
     catalogID: String? = nil,
@@ -82,19 +70,17 @@ public enum CatalogJSONSchemaCodec {
     guard let root = rawSchema.objectValue else {
       throw A2UICatalogError("Catalog JSON Schema must be an object.")
     }
-    let resolvedID =
-      catalogID
-      ?? root["catalogId"]?.stringValue
-      ?? root["id"]?.stringValue
+    let resolvedID = catalogID ?? root["catalogId"]?.stringValue ?? root["id"]?.stringValue
     guard let resolvedID, !resolvedID.isEmpty else {
-      throw A2UICatalogError("Catalog schema is missing a non-empty 'catalogId'.")
+      throw A2UICatalogError("catalog_id must be provided or exist in catalog schema")
     }
 
-    let resolvedVersion =
+    let rawVersion =
       protocolVersion
       ?? root["protocolVersion"]?.stringValue
       ?? root["protocol_version"]?.stringValue
       ?? inferProtocolVersion(from: root)
+    let resolvedVersion = CatalogDocumentCodec.normalizeProtocolVersion(rawVersion)
     let isV10 = isAtLeastV10(resolvedVersion)
 
     if isV10 {
@@ -103,33 +89,14 @@ public enum CatalogJSONSchemaCodec {
     }
 
     let rawDefs = root["$defs"]?.objectValue ?? [:]
-    var types: [String: TypeDefinition] = [:]
-    let excludedDefKeys: Set<String> = [
-      "anyComponent", "anyFunction", "theme", "CatalogComponentCommon", "ComponentCommon",
-    ]
-    let knownTypeNames = Set(
-      rawDefs.keys.filter {
-        !excludedDefKeys.contains($0) && UnicodeIdentifierValidator.isValidIdentifier($0)
-      }
-    )
-    for (defName, defSchema) in rawDefs where knownTypeNames.contains(defName) {
-      let translated = translateType(
-        defSchema,
-        localDefs: rawDefs,
-        knownTypeNames: knownTypeNames.subtracting([defName]),
-        visitedRefs: ["#/$defs/\(defName)"]
-      )
-      if translated.isDataType && !translated.containsRawJSONSchema {
-        types[defName] = translated
-      }
-    }
-    let finalTypeNames = Set(types.keys)
+    let types = extractLocalTypes(from: rawDefs)
+    let decodeCtx = DecodeContext(localDefs: rawDefs, knownTypeNames: Set(types.keys))
 
-    let allowedComponentNames = extractUnionAllowedNames(
+    let allowedComponents = extractUnionAllowedNames(
       in: rawDefs["anyComponent"],
       prefix: "#/components/"
     )
-    let allowedFunctionNames = extractUnionAllowedNames(
+    let allowedFunctions = extractUnionAllowedNames(
       in: rawDefs["anyFunction"],
       prefix: "#/functions/"
     )
@@ -137,56 +104,42 @@ public enum CatalogJSONSchemaCodec {
     var components: [ComponentDefinition] = []
     if let compsObj = root["components"]?.objectValue {
       for (name, compSchema) in compsObj {
-        if let allowedComponentNames, !allowedComponentNames.contains(name) {
-          continue
+        if let allowedComponents, !allowedComponents.contains(name) { continue }
+        let meta: [String: JSONValue]?
+        if isV10 {
+          meta = try MetadataValidator.validate(
+            compSchema["metadata"],
+            pathPrefix: "components.\(name).metadata"
+          )
+        } else {
+          meta = compSchema["metadata"]?.dictionaryValue
         }
-        let parents = compSchema["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
-        let children = compSchema["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
-        let meta = try validateOptionalMetadata(
-          compSchema["metadata"],
-          pathPrefix: "components.\(name).metadata"
+        components.append(
+          extractComponentDefinition(
+            from: name,
+            schema: compSchema,
+            context: decodeCtx,
+            allowedParents: compSchema["allowedParents"]?.arrayValue?.compactMap(\.stringValue),
+            allowedChildren: compSchema["allowedChildren"]?.arrayValue?.compactMap(\.stringValue),
+            metadata: meta,
+            defaultAllowsAdditionalProperties: !isV10
+          )
         )
-        let compDef = componentDefinition(
-          from: name,
-          schema: compSchema,
-          localDefs: rawDefs,
-          knownTypeNames: finalTypeNames,
-          allowedParents: parents,
-          allowedChildren: children,
-          metadata: meta,
-          defaultAllowsAdditionalProperties: !isV10
-        )
-        components.append(compDef)
       }
     }
 
-    let allDeclaredFunctions = try parseFunctions(
-      from: root["functions"],
-      localDefs: rawDefs,
-      knownTypeNames: finalTypeNames
-    )
+    let allFunctions = try parseFunctions(from: root["functions"], context: decodeCtx)
     if isV10 {
-      for fn in allDeclaredFunctions {
-        try fn.validateCallerConstraints()
-      }
+      for fn in allFunctions { try fn.validateCallerConstraints() }
     }
-    let functions: [FunctionDefinition]
-    if let allowedFunctionNames {
-      functions = allDeclaredFunctions.filter { allowedFunctionNames.contains($0.name) }
-    } else {
-      functions = allDeclaredFunctions
-    }
+    let functions =
+      allowedFunctions.map { allowed in allFunctions.filter { allowed.contains($0.name) } }
+      ?? allFunctions
 
     let rawTheme = root["theme"] ?? rawDefs["theme"]
     let surfaceProperties = rawTheme.map {
-      surfacePropertiesDefinition(
-        from: $0,
-        localDefs: rawDefs,
-        knownTypeNames: finalTypeNames
-      )
+      extractSurfacePropertiesDefinition(from: $0, context: decodeCtx)
     }
-
-    let metadata = try validateOptionalMetadata(root["metadata"], pathPrefix: "metadata")
 
     return CatalogModel(
       formatVersion: CatalogDocumentCodec.supportedFormatVersion,
@@ -195,7 +148,7 @@ public enum CatalogJSONSchemaCodec {
       title: root["title"]?.stringValue,
       description: root["description"]?.stringValue,
       instructions: root["instructions"]?.stringValue,
-      metadata: metadata,
+      metadata: root["metadata"]?.dictionaryValue,
       types: types,
       surfaceProperties: surfaceProperties,
       components: components,
@@ -203,66 +156,22 @@ public enum CatalogJSONSchemaCodec {
     )
   }
 
-  // MARK: - Component / Function / SurfaceProperties JSON Schema -> Model
-
   /// Translates a single component JSON Schema into a canonical ``ComponentDefinition``.
   public static func componentDefinition(
     from name: String,
     schema: JSONValue,
-    localDefs: OrderedDictionary<String, JSONValue> = [:],
-    knownTypeNames: Set<String> = [],
     allowedParents: [String]? = nil,
     allowedChildren: [String]? = nil,
-    metadata: [String: JSONValue]? = nil,
-    defaultAllowsAdditionalProperties: Bool = true
+    metadata: [String: JSONValue]? = nil
   ) -> ComponentDefinition {
-    var mergedDefs = localDefs
-    if let schemaDefs = schema["$defs"]?.objectValue {
-      for (k, v) in schemaDefs where mergedDefs[k] == nil {
-        mergedDefs[k] = v
-      }
-    }
-
-    var state = ComponentExtractionState(
-      allowsAdditionalProperties: defaultAllowsAdditionalProperties
-    )
-    extractComponentSchema(
-      schema,
-      root: schema,
-      localDefs: mergedDefs,
-      knownTypeNames: knownTypeNames,
-      visitedRefs: [],
-      into: &state
-    )
-
-    let parameters = buildComponentParameters(
-      from: &state,
-      localDefs: mergedDefs,
-      knownTypeNames: knownTypeNames
-    )
-    let resolvedParents =
-      allowedParents ?? schema["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
-    let resolvedChildren =
-      allowedChildren ?? schema["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
-    let resolvedMetadata = metadata ?? schema["metadata"]?.dictionaryValue
-    let description = schema["description"]?.stringValue ?? state.description
-    let deprecated = schema["deprecated"]?.boolValue ?? false
-    let untranslatableSchema: JSONValue? =
-      state.hasUntranslatableRoot ? Optional(schema) : Optional<JSONValue>.none
-
-    return ComponentDefinition(
-      name: name,
-      description: description,
-      isCheckable: state.isCheckable,
-      parameters: parameters,
-      atLeastOneOf: state.atLeastOneOf,
-      allowedParents: resolvedParents,
-      allowedChildren: resolvedChildren,
-      metadata: resolvedMetadata,
-      deprecated: deprecated,
-      deprecatedReason: nil,
-      rawJSONSchema: untranslatableSchema,
-      allowsAdditionalProperties: state.allowsAdditionalProperties
+    extractComponentDefinition(
+      from: name,
+      schema: schema,
+      context: DecodeContext(localDefs: [:], knownTypeNames: []),
+      allowedParents: allowedParents,
+      allowedChildren: allowedChildren,
+      metadata: metadata,
+      defaultAllowsAdditionalProperties: true
     )
   }
 
@@ -273,526 +182,194 @@ public enum CatalogJSONSchemaCodec {
     argsSchema: JSONValue,
     description: String? = nil,
     allowedCallers: AllowedCallers = .rendererOnly,
-    requiresUserActivation: Bool = false,
-    localDefs: OrderedDictionary<String, JSONValue> = [:],
-    knownTypeNames: Set<String> = []
+    requiresUserActivation: Bool = false
   ) -> FunctionDefinition {
-    let returnDef = FunctionReturnDefinition(returnType: returnType)
-    return functionDefinition(
+    extractFunctionDefinition(
       from: name,
-      returnDefinition: returnDef,
+      returnDefinition: FunctionReturnDefinition(returnType: returnType),
       argsSchema: argsSchema,
       description: description,
       allowedCallers: allowedCallers,
       requiresUserActivation: requiresUserActivation,
-      localDefs: localDefs,
-      knownTypeNames: knownTypeNames
+      deprecated: false,
+      deprecatedReason: nil,
+      context: DecodeContext(localDefs: [:], knownTypeNames: [])
     )
   }
 
-  /// Translates a theme JSON Schema into a canonical ``SurfacePropertiesDefinition``.
+  /// Translates a v0.9 / v0.9.1 theme JSON Schema into a canonical ``SurfacePropertiesDefinition``.
   public static func surfacePropertiesDefinition(
-    from themeSchema: JSONValue,
-    localDefs: OrderedDictionary<String, JSONValue> = [:],
-    knownTypeNames: Set<String> = []
+    from themeSchema: JSONValue
   ) -> SurfacePropertiesDefinition {
-    guard let obj = themeSchema.objectValue else {
-      return SurfacePropertiesDefinition(rawJSONSchema: themeSchema)
-    }
-    let hasObjectWrapper =
-      obj["type"]?.stringValue == "object"
-      || obj["properties"]?.objectValue != nil
-      || obj["additionalProperties"] != nil
-      || obj["unevaluatedProperties"] != nil
-    let propsObj: OrderedDictionary<String, JSONValue>
-    if hasObjectWrapper {
-      if obj.keys.contains(where: { untranslatableObjectKeywords.contains($0) }) {
-        return SurfacePropertiesDefinition(
-          description: obj["description"]?.stringValue,
-          rawJSONSchema: themeSchema
-        )
-      }
-      propsObj = obj["properties"]?.objectValue ?? [:]
-    } else {
-      propsObj = obj
-    }
-    let requiredSet = Set(obj["required"]?.arrayValue?.compactMap(\.stringValue) ?? [])
-    let params = propsObj.map { propName, propSchema -> ParameterDefinition in
-      let translated = translateType(
-        propSchema,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: []
-      )
-      return ParameterDefinition(
-        name: propName,
-        type: translated.strippingParameterMetadata(),
-        required: requiredSet.contains(propName),
-        description: translated.description,
-        deprecated: translated.isDeprecated,
-        deprecatedReason: translated.deprecatedReason
-      )
-    }
-    let additional = translateAdditionalProperties(
-      object: obj,
-      localDefs: localDefs,
-      knownTypeNames: knownTypeNames,
-      visitedRefs: []
-    )
-    return SurfacePropertiesDefinition(
-      description: hasObjectWrapper ? obj["description"]?.stringValue : nil,
-      properties: params,
-      additionalProperties: additional,
-      rawJSONSchema: nil
+    extractSurfacePropertiesDefinition(
+      from: themeSchema,
+      context: DecodeContext(localDefs: [:], knownTypeNames: [])
     )
   }
 
-  // MARK: - CatalogModel -> JSON Schema
-
-  /// Serializes a ``CatalogModel`` to a JSON Schema catalog document for `protocolVersion`.
+  /// Serializes a canonical ``CatalogModel`` into a backward-compatible JSON Schema catalog.
   public static func toJSONSchema(
     _ model: CatalogModel,
     protocolVersion: A2UIProtocolVersion = .v10,
     componentEnvelopeRef: String? = nil
   ) -> JSONValue {
-    let envelopeRef = componentEnvelopeRef ?? "common_types.json#/$defs/ComponentCommon"
-    var root: OrderedDictionary<String, JSONValue> = [:]
+    let envelopeRef =
+      componentEnvelopeRef
+      ?? (protocolVersion.isAtLeastV10
+        ? "common_types.json#/$defs/ComponentCommon"
+        : "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon")
+    let ctx = EncodeContext(
+      version: protocolVersion,
+      localTypes: model.types,
+      useAbsoluteCommonURIs: false,
+      inlineLocalTypes: false
+    )
 
+    var root: OrderedDictionary<String, JSONValue> = [
+      "$schema": .string("https://json-schema.org/draft/2020-12/schema"),
+      "$id": .string(model.catalogID),
+    ]
     if protocolVersion.isAtLeastV10 {
-      let semver =
-        protocolVersion.rawValue.hasPrefix("v")
-        ? String(protocolVersion.rawValue.dropFirst())
-        : protocolVersion.rawValue
-      root["protocolVersion"] = .string(semver)
+      root["protocolVersion"] = .string(protocolVersion.rawValue)
     }
+    if let title = model.title { root["title"] = .string(title) }
+    if let description = model.description { root["description"] = .string(description) }
     root["catalogId"] = .string(model.catalogID)
-    if let title = model.title {
-      root["title"] = .string(title)
-    }
-    if let description = model.description {
-      root["description"] = .string(description)
-    }
     if protocolVersion.isAtLeastV10, let instructions = model.instructions {
       root["instructions"] = .string(instructions)
     }
-    if protocolVersion.isAtLeastV10, let metadata = model.metadata, !metadata.isEmpty {
-      var orderedMeta: OrderedDictionary<String, JSONValue> = [:]
-      for key in metadata.keys.sorted() {
-        orderedMeta[key] = metadata[key]
-      }
-      root["metadata"] = .object(orderedMeta)
+    if let metadata = model.metadata, !metadata.isEmpty {
+      var ordered: OrderedDictionary<String, JSONValue> = [:]
+      for key in metadata.keys.sorted() { ordered[key] = metadata[key] }
+      root["metadata"] = .object(ordered)
     }
 
     var componentsDict: OrderedDictionary<String, JSONValue> = [:]
     for comp in model.components {
-      componentsDict[comp.name] = inlineComponentJSONSchema(
+      var defsNeeded: Set<String> = []
+      componentsDict[comp.name] = buildInlineComponentSchema(
         comp,
-        version: protocolVersion,
         envelopeRef: envelopeRef,
-        localTypes: model.types,
-        useAbsoluteCommonURIs: false,
-        inlineLocalTypes: false
+        context: ctx,
+        referencedDefs: &defsNeeded
       )
     }
     if !componentsDict.isEmpty {
       root["components"] = .object(componentsDict)
     }
 
-    let userFunctions = model.functions.filter { !$0.name.hasPrefix("@") }
-    var v10FunctionNames: [String] = []
-    if protocolVersion.isAtLeastV10 {
-      if !userFunctions.isEmpty {
-        var functionsDict: OrderedDictionary<String, JSONValue> = [:]
-        for fn in userFunctions {
-          functionsDict[fn.name] = inlineV10FunctionJSONSchema(
+    var functionNames: [String] = []
+    if !model.functions.isEmpty {
+      var funcsDict: OrderedDictionary<String, JSONValue> = [:]
+      for fn in model.functions where !fn.name.hasPrefix("@") {
+        functionNames.append(fn.name)
+        var defsNeeded: Set<String> = []
+        funcsDict[fn.name] =
+          protocolVersion.isAtLeastV10
+          ? buildV10FunctionSchema(
             fn,
-            localTypes: model.types,
-            useAbsoluteCommonURIs: false,
-            inlineLocalTypes: false
+            context: ctx,
+            alwaysCloseArgs: false,
+            alwaysEmitCallerFlags: false,
+            referencedDefs: &defsNeeded
           )
-          v10FunctionNames.append(fn.name)
-        }
-        root["functions"] = .object(functionsDict)
+          : buildV09MapFunctionSchema(fn, context: ctx, referencedDefs: &defsNeeded)
       }
-    } else if !userFunctions.isEmpty {
-      root["functions"] = .array(
-        userFunctions.map {
-          inlineV09FunctionJSONSchema(
-            $0,
-            localTypes: model.types,
-            useAbsoluteCommonURIs: false,
-            inlineLocalTypes: false
-          )
-        }
-      )
+      if !funcsDict.isEmpty { root["functions"] = .object(funcsDict) }
     }
 
     if !protocolVersion.isAtLeastV10, let surfaceProperties = model.surfaceProperties {
-      let themeObj = surfacePropertiesJSONSchema(
+      var defsNeeded: Set<String> = []
+      let themeObj = buildSurfacePropertiesSchema(
         surfaceProperties,
-        version: protocolVersion,
-        localTypes: model.types,
-        useAbsoluteCommonURIs: false,
-        inlineLocalTypes: true
+        context: EncodeContext(
+          version: protocolVersion,
+          localTypes: model.types,
+          useAbsoluteCommonURIs: false,
+          inlineLocalTypes: false
+        ),
+        referencedDefs: &defsNeeded
       )
       root["theme"] = themeObj["properties"] ?? themeObj
     }
 
+    var defs: OrderedDictionary<String, JSONValue> = [:]
     if protocolVersion.isAtLeastV10 {
-      var defs: OrderedDictionary<String, JSONValue> = [
-        "anyComponent": makeCatalogUnion(
-          names: Array(componentsDict.keys),
-          section: "components",
-          discriminator: "component"
-        ),
-        "anyFunction": makeCatalogUnion(names: v10FunctionNames, section: "functions"),
-      ]
-      for name in model.types.keys.sorted() {
-        guard let typeDef = model.types[name] else { continue }
-        defs[name] = typeToJSONSchema(
-          typeDef,
-          version: protocolVersion,
-          localTypes: model.types,
-          useAbsoluteCommonURIs: false,
-          inlineLocalTypes: false
-        )
-      }
-      root["$defs"] = .object(defs)
-    } else if !model.types.isEmpty {
-      var defs: OrderedDictionary<String, JSONValue> = [:]
-      for name in model.types.keys.sorted() {
-        guard let typeDef = model.types[name] else { continue }
-        defs[name] = typeToJSONSchema(
-          typeDef,
-          version: protocolVersion,
-          localTypes: model.types,
-          useAbsoluteCommonURIs: false,
-          inlineLocalTypes: false
-        )
-      }
+      defs["anyComponent"] = makeCatalogUnion(
+        names: Array(componentsDict.keys),
+        section: "components",
+        discriminator: "component"
+      )
+      defs["anyFunction"] = makeCatalogUnion(names: functionNames, section: "functions")
+    }
+    for (name, schema) in typeDefsJSONSchema(model.types, version: protocolVersion) {
+      defs[name] = schema
+    }
+    if !defs.isEmpty {
       root["$defs"] = .object(defs)
     }
-
     return .object(root)
   }
 
-  /// Generates an inline JSON Schema object for a single component definition.
-  public static func inlineComponentJSONSchema(
-    _ definition: ComponentDefinition,
-    version: A2UIProtocolVersion,
-    envelopeRef: String = "common_types.json#/$defs/ComponentCommon",
-    localTypes: [String: TypeDefinition] = [:],
-    useAbsoluteCommonURIs: Bool = false,
-    inlineLocalTypes: Bool = true
-  ) -> JSONValue {
-    if let raw = definition.rawJSONSchema {
-      return raw
-    }
-
-    var properties: OrderedDictionary<String, JSONValue> = [
-      "component": .object(["const": .string(definition.name)])
-    ]
-    var required: [JSONValue] = [.string("component")]
-
-    for param in definition.parameters {
-      properties[param.name] = parameterToJSONSchema(
-        param,
-        version: version,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      )
-      if param.required {
-        required.append(.string(param.name))
-      }
-    }
-
-    if version.isAtLeastV10 {
-      var coreObj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
-      if let description = definition.description, !definition.isCheckable {
-        coreObj["description"] = .string(description)
-      }
-      coreObj["properties"] = .object(properties)
-      coreObj["required"] = .array(required)
-      if !definition.atLeastOneOf.isEmpty {
-        coreObj["anyOf"] = encodeAtLeastOneOfJSONSchema(definition.atLeastOneOf)
-      }
-
-      var result: OrderedDictionary<String, JSONValue>
-      if definition.isCheckable {
-        result = ["type": .string("object")]
-        if let description = definition.description {
-          result["description"] = .string(description)
-        }
-        result["allOf"] = .array([
-          .object([
-            "$ref": .string(
-              commonRef("Checkable", version: version, absolute: useAbsoluteCommonURIs))
-          ]),
-          .object(coreObj),
-        ])
-      } else {
-        result = coreObj
-      }
-
-      if let allowedParents = definition.allowedParents {
-        result["allowedParents"] = .array(allowedParents.map { .string($0) })
-      }
-      if let allowedChildren = definition.allowedChildren {
-        result["allowedChildren"] = .array(allowedChildren.map { .string($0) })
-      }
-      if let metadata = definition.metadata {
-        var orderedMeta: OrderedDictionary<String, JSONValue> = [:]
-        for key in metadata.keys.sorted() {
-          orderedMeta[key] = metadata[key]
-        }
-        result["metadata"] = .object(orderedMeta)
-      }
-      if definition.deprecated {
-        result["deprecated"] = .boolean(true)
-      }
-      return .object(result)
-    }
-
-    var allOfBranches: [JSONValue] = [
-      .object(["$ref": .string(envelopeRef)])
-    ]
-    if definition.isCheckable {
-      allOfBranches.append(
-        .object([
-          "$ref": .string(commonRef("Checkable", version: version, absolute: useAbsoluteCommonURIs))
-        ])
-      )
-    }
-    var innerObj: OrderedDictionary<String, JSONValue> = [
-      "properties": .object(properties),
-      "required": .array(required),
-    ]
-    if let description = definition.description {
-      innerObj["description"] = .string(description)
-    }
-    if !definition.atLeastOneOf.isEmpty {
-      innerObj["anyOf"] = encodeAtLeastOneOfJSONSchema(definition.atLeastOneOf)
-    }
-    allOfBranches.append(.object(innerObj))
-    return .object(["allOf": .array(allOfBranches)])
-  }
-
-  /// Generates a v1.0 inline JSON Schema definition for a catalog function.
-  public static func inlineV10FunctionJSONSchema(
-    _ definition: FunctionDefinition,
-    localTypes: [String: TypeDefinition] = [:],
-    useAbsoluteCommonURIs: Bool = false,
-    inlineLocalTypes: Bool = true
-  ) -> JSONValue {
-    var argsDict =
-      functionArgsJSONSchema(
-        definition,
-        version: .v10,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      ).objectValue ?? ["type": .string("object")]
-    _ = argsDict.removeValue(forKey: "description")
-    if argsDict["type"] == nil {
-      argsDict["type"] = .string("object")
-    }
-    if argsDict["additionalProperties"] == nil && argsDict["unevaluatedProperties"] == nil {
-      argsDict["unevaluatedProperties"] = .boolean(false)
-    }
-
-    var fnObj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
-    if let description = definition.description {
-      fnObj["description"] = .string(description)
-    }
-    fnObj["returnType"] = .string(definition.returnType.functionReturnType.rawValue)
-    fnObj["allowedCallers"] = .string(definition.allowedCallers.rawValue)
-    fnObj["requiresUserActivation"] = .boolean(definition.requiresUserActivation)
-    fnObj["properties"] = .object([
-      "@call": .object(["const": .string(definition.name)]),
-      "args": .object(argsDict),
-    ])
-    let requiredArgs = argsDict["required"]?.arrayValue ?? []
-    var requiredFields: [JSONValue] = [.string("@call")]
-    if !requiredArgs.isEmpty || !definition.atLeastOneOf.isEmpty {
-      requiredFields.append(.string("args"))
-    }
-    fnObj["required"] = .array(requiredFields)
-    return .object(fnObj)
-  }
-
-  /// Generates a v0.9 inline JSON Schema entry for a catalog function.
-  public static func inlineV09FunctionJSONSchema(
-    _ definition: FunctionDefinition,
-    localTypes: [String: TypeDefinition] = [:],
-    useAbsoluteCommonURIs: Bool = false,
-    inlineLocalTypes: Bool = true
-  ) -> JSONValue {
-    let paramsSchema = functionArgsJSONSchema(
-      definition,
-      version: .v091,
-      localTypes: localTypes,
-      useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-      inlineLocalTypes: inlineLocalTypes
-    )
-    var fnObj: OrderedDictionary<String, JSONValue> = [
-      "name": .string(definition.name),
-      "returnType": .string(definition.returnType.functionReturnType.rawValue),
-    ]
-    if let description = definition.description {
-      fnObj["description"] = .string(description)
-    }
-    fnObj["parameters"] = paramsSchema
-    return .object(fnObj)
-  }
-
-  /// Generates a standalone argument-object JSON Schema for a ``FunctionDefinition``.
-  public static func functionArgsJSONSchema(
-    _ definition: FunctionDefinition,
-    version: A2UIProtocolVersion = .v10,
-    localTypes: [String: TypeDefinition] = [:],
-    useAbsoluteCommonURIs: Bool = true,
-    inlineLocalTypes: Bool = true
-  ) -> JSONValue {
-    if let raw = definition.rawJSONSchema {
-      return raw
-    }
-    var obj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
-    if let description = definition.description {
-      obj["description"] = .string(description)
-    }
-    var properties: OrderedDictionary<String, JSONValue> = [:]
-    var required: [JSONValue] = []
-    for param in definition.parameters {
-      properties[param.name] = parameterToJSONSchema(
-        param,
-        version: version,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      )
-      if param.required {
-        required.append(.string(param.name))
-      }
-    }
-    obj["properties"] = .object(properties)
-    if !required.isEmpty {
-      obj["required"] = .array(required)
-    }
-    if !definition.atLeastOneOf.isEmpty {
-      obj["anyOf"] = encodeAtLeastOneOfJSONSchema(definition.atLeastOneOf)
-    }
-    switch definition.additionalParameters {
-    case .disallowed:
-      obj["additionalProperties"] = .boolean(false)
-    case .allowed:
-      obj["additionalProperties"] = .boolean(true)
-    case .typed(let extraType):
-      obj["additionalProperties"] = typeToJSONSchema(
-        extraType,
-        version: version,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      )
-    }
-    return .object(obj)
-  }
-
-  /// Generates a JSON Schema object for ``SurfacePropertiesDefinition``.
-  public static func surfacePropertiesJSONSchema(
-    _ definition: SurfacePropertiesDefinition,
-    version: A2UIProtocolVersion = .v091,
-    localTypes: [String: TypeDefinition] = [:],
-    useAbsoluteCommonURIs: Bool = true,
-    inlineLocalTypes: Bool = true
-  ) -> JSONValue {
-    if let raw = definition.rawJSONSchema {
-      return raw
-    }
-    var obj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
-    if let description = definition.description {
-      obj["description"] = .string(description)
-    }
-    var properties: OrderedDictionary<String, JSONValue> = [:]
-    var required: [JSONValue] = []
-    for prop in definition.properties {
-      properties[prop.name] = parameterToJSONSchema(
-        prop,
-        version: version,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      )
-      if prop.required {
-        required.append(.string(prop.name))
-      }
-    }
-    obj["properties"] = .object(properties)
-    if !required.isEmpty {
-      obj["required"] = .array(required)
-    }
-    switch definition.additionalProperties {
-    case .disallowed:
-      obj["additionalProperties"] = .boolean(false)
-    case .allowed:
-      obj["additionalProperties"] = .boolean(true)
-    case .typed(let extraType):
-      obj["additionalProperties"] = typeToJSONSchema(
-        extraType,
-        version: version,
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-        inlineLocalTypes: inlineLocalTypes
-      )
-    }
-    return .object(obj)
-  }
-
-  // MARK: - Compiled JSONSchema.Schema Bridges
-
-  /// Compiles a ``ComponentDefinition`` into a `JSONSchema.Schema` for backward-compatible callers
-  /// reading `ComponentAPI.schema`.
+  /// Compiles a ``ComponentDefinition`` into a standalone `JSONSchema.Schema`.
   public static func compileComponentSchema(
     _ definition: ComponentDefinition,
     protocolVersion: A2UIProtocolVersion = .v10,
     localTypes: [String: TypeDefinition] = [:]
   ) throws -> Schema {
-    if let raw = definition.rawJSONSchema {
-      return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
-    }
-    var raw =
-      inlineComponentJSONSchema(
-        definition,
-        version: protocolVersion,
-        envelopeRef: commonRef("ComponentCommon", version: protocolVersion, absolute: true),
-        localTypes: localTypes,
-        useAbsoluteCommonURIs: true,
-        inlineLocalTypes: true
-      ).objectValue ?? ["type": .string("object")]
-    if protocolVersion.isAtLeastV10 {
-      let envelopeRef = JSONValue.object([
-        "$ref": .string(A2UICommonSchema.v10URI(for: "ComponentCommon"))
-      ])
-      if var allOf = raw["allOf"]?.arrayValue {
-        allOf.insert(envelopeRef, at: 0)
-        raw["allOf"] = .array(allOf)
-      } else {
-        let inner = JSONValue.object(raw)
-        raw = [
-          "type": .string("object"),
-          "allOf": .array([envelopeRef, inner]),
-        ]
-      }
-    }
-    if !definition.allowsAdditionalProperties {
-      raw["unevaluatedProperties"] = .boolean(false)
-    }
-    return try Schema(rawSchema: .object(raw), context: A2UISchemaRegistry.makeContext())
+    let raw = buildCompiledComponentSchema(
+      definition,
+      version: protocolVersion,
+      localTypes: localTypes
+    )
+    return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
   }
 
-  /// Compiles a ``ComponentDefinition`` into a `JSONSchema.Schema`, falling back to an empty object
-  /// schema only if compilation fails unexpectedly.
+  /// Compiles a ``FunctionDefinition``'s arguments into a standalone `JSONSchema.Schema`.
+  public static func compileFunctionArgsSchema(
+    _ definition: FunctionDefinition,
+    protocolVersion: A2UIProtocolVersion = .v10,
+    localTypes: [String: TypeDefinition] = [:]
+  ) throws -> Schema {
+    let ctx = EncodeContext(
+      version: protocolVersion,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: true,
+      inlineLocalTypes: true
+    )
+    var defsNeeded: Set<String> = []
+    var raw = buildFunctionArgsSchema(
+      definition,
+      context: ctx,
+      forceClosedArgs: false,
+      referencedDefs: &defsNeeded
+    )
+    raw = attachingDefsIfNeeded(
+      raw, names: defsNeeded, version: protocolVersion, localTypes: localTypes)
+    return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
+  }
+
+  /// Compiles a ``SurfacePropertiesDefinition`` into a standalone `JSONSchema.Schema`.
+  public static func compileSurfacePropertiesSchema(
+    _ definition: SurfacePropertiesDefinition,
+    protocolVersion: A2UIProtocolVersion = .v091,
+    localTypes: [String: TypeDefinition] = [:]
+  ) throws -> Schema {
+    let ctx = EncodeContext(
+      version: protocolVersion,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: true,
+      inlineLocalTypes: true
+    )
+    var defsNeeded: Set<String> = []
+    var raw = buildSurfacePropertiesSchema(definition, context: ctx, referencedDefs: &defsNeeded)
+    raw = attachingDefsIfNeeded(
+      raw, names: defsNeeded, version: protocolVersion, localTypes: localTypes)
+    return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
+  }
+
+  // MARK: - Internal / Package Inline Helpers
+
   package static func compileComponentSchemaOrEmpty(
     _ definition: ComponentDefinition,
     protocolVersion: A2UIProtocolVersion = .v10,
@@ -805,22 +382,6 @@ public enum CatalogJSONSchemaCodec {
     )) ?? emptyObjectSchema
   }
 
-  /// Compiles a ``FunctionDefinition`` into a `JSONSchema.Schema` for `FunctionAPI.schema`.
-  public static func compileFunctionArgsSchema(
-    _ definition: FunctionDefinition,
-    protocolVersion: A2UIProtocolVersion = .v10,
-    localTypes: [String: TypeDefinition] = [:]
-  ) throws -> Schema {
-    let raw = functionArgsJSONSchema(
-      definition,
-      version: protocolVersion,
-      localTypes: localTypes,
-      useAbsoluteCommonURIs: true,
-      inlineLocalTypes: true
-    )
-    return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
-  }
-
   internal static func compileFunctionArgsSchemaOrEmpty(
     _ definition: FunctionDefinition,
     protocolVersion: A2UIProtocolVersion = .v10,
@@ -831,22 +392,6 @@ public enum CatalogJSONSchemaCodec {
       protocolVersion: protocolVersion,
       localTypes: localTypes
     )) ?? emptyObjectSchema
-  }
-
-  /// Compiles a ``SurfacePropertiesDefinition`` into a `JSONSchema.Schema` for `themeSchema`.
-  public static func compileSurfacePropertiesSchema(
-    _ definition: SurfacePropertiesDefinition,
-    protocolVersion: A2UIProtocolVersion = .v091,
-    localTypes: [String: TypeDefinition] = [:]
-  ) throws -> Schema {
-    let raw = surfacePropertiesJSONSchema(
-      definition,
-      version: protocolVersion,
-      localTypes: localTypes,
-      useAbsoluteCommonURIs: true,
-      inlineLocalTypes: true
-    )
-    return try Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext())
   }
 
   internal static func compileSurfacePropertiesSchemaOrNil(
@@ -862,33 +407,224 @@ public enum CatalogJSONSchemaCodec {
     )
   }
 
+  internal static func inlineComponentJSONSchema(
+    _ definition: ComponentDefinition,
+    version: A2UIProtocolVersion,
+    envelopeRef: String,
+    localTypes: [String: TypeDefinition]
+  ) -> JSONValue {
+    let ctx = EncodeContext(
+      version: version,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: false,
+      inlineLocalTypes: !version.isAtLeastV10
+    )
+    var defsNeeded: Set<String> = []
+    let raw = buildInlineComponentSchema(
+      definition,
+      envelopeRef: envelopeRef,
+      context: ctx,
+      referencedDefs: &defsNeeded
+    )
+    if !version.isAtLeastV10 {
+      return attachingDefsIfNeeded(
+        raw,
+        names: defsNeeded,
+        version: version,
+        localTypes: localTypes,
+        useAbsoluteCommonURIs: false
+      )
+    }
+    return raw
+  }
+
+  internal static func inlineV10FunctionJSONSchema(
+    _ definition: FunctionDefinition,
+    localTypes: [String: TypeDefinition],
+    alwaysCloseArgs: Bool = true
+  ) -> JSONValue {
+    let ctx = EncodeContext(
+      version: .v10,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: false,
+      inlineLocalTypes: false
+    )
+    var defsNeeded: Set<String> = []
+    return buildV10FunctionSchema(
+      definition,
+      context: ctx,
+      alwaysCloseArgs: alwaysCloseArgs,
+      alwaysEmitCallerFlags: true,
+      referencedDefs: &defsNeeded
+    )
+  }
+
+  internal static func inlineV09FunctionJSONSchema(
+    _ definition: FunctionDefinition,
+    version: A2UIProtocolVersion,
+    localTypes: [String: TypeDefinition]
+  ) -> JSONValue {
+    let ctx = EncodeContext(
+      version: version,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: false,
+      inlineLocalTypes: true
+    )
+    var defsNeeded: Set<String> = []
+    var obj: OrderedDictionary<String, JSONValue> = ["name": .string(definition.name)]
+    if let desc = definition.description { obj["description"] = .string(desc) }
+    obj["parameters"] = buildFunctionArgsSchema(
+      definition,
+      context: ctx,
+      forceClosedArgs: false,
+      referencedDefs: &defsNeeded
+    )
+    obj["returnType"] = .string(definition.returnType.functionReturnType.rawValue)
+    return .object(obj)
+  }
+
+  internal static func inlineSurfacePropertiesJSONSchema(
+    _ definition: SurfacePropertiesDefinition,
+    version: A2UIProtocolVersion,
+    localTypes: [String: TypeDefinition]
+  ) -> JSONValue {
+    let ctx = EncodeContext(
+      version: version,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: false,
+      inlineLocalTypes: true
+    )
+    var defsNeeded: Set<String> = []
+    return buildSurfacePropertiesSchema(definition, context: ctx, referencedDefs: &defsNeeded)
+  }
+
+  internal static func typeDefsJSONSchema(
+    _ types: [String: TypeDefinition],
+    version: A2UIProtocolVersion,
+    useAbsoluteCommonURIs: Bool = false
+  ) -> OrderedDictionary<String, JSONValue> {
+    let ctx = EncodeContext(
+      version: version,
+      localTypes: types,
+      useAbsoluteCommonURIs: useAbsoluteCommonURIs,
+      inlineLocalTypes: false
+    )
+    var defs: OrderedDictionary<String, JSONValue> = [:]
+    for name in types.keys.sorted() {
+      guard let typeDef = types[name] else { continue }
+      var defsNeeded: Set<String> = []
+      defs[name] = typeToJSONSchema(typeDef, context: ctx, referencedDefs: &defsNeeded)
+    }
+    return defs
+  }
+
+  /// Translates a single property JSON Schema into a ``TypeDefinition`` (used by runtime helpers).
+  internal static func translateStandalonePropertyType(_ schema: JSONValue) -> TypeDefinition {
+    translateType(schema, context: DecodeContext(localDefs: [:], knownTypeNames: []))
+  }
+
   // MARK: - Private JSON Schema -> Model Extraction
+
+  /// Extracts valid local `$defs` data types using fixed-point pruning so self- and
+  /// mutually-recursive definitions survive while untranslatable defs never leave dangling `.ref`s.
+  private static func extractLocalTypes(
+    from rawDefs: OrderedDictionary<String, JSONValue>
+  ) -> [String: TypeDefinition] {
+    var candidateNames = Set(
+      rawDefs.keys.filter {
+        !excludedDefKeys.contains($0) && UnicodeIdentifierValidator.isValidIdentifier($0)
+      }
+    )
+    while true {
+      let ctx = DecodeContext(localDefs: rawDefs, knownTypeNames: candidateNames)
+      var translated: [String: TypeDefinition] = [:]
+      var dropped = false
+      for name in candidateNames {
+        guard let defSchema = rawDefs[name] else { continue }
+        let typeDef = translateType(defSchema, context: ctx)
+        if typeDef.isDataType && !typeDef.containsRawJSONSchema {
+          translated[name] = typeDef
+        } else {
+          candidateNames.remove(name)
+          dropped = true
+        }
+      }
+      if !dropped {
+        return translated
+      }
+    }
+  }
 
   private struct ComponentExtractionState {
     var properties: OrderedDictionary<String, JSONValue> = [:]
+    var deferredCommonProperties: OrderedDictionary<String, JSONValue> = [:]
     var propertyBlockHasID: [String: Bool] = [:]
     var required: Set<String> = []
     var atLeastOneOf: [[String]] = []
     var isCheckable = false
     var description: String?
     var hasUntranslatableRoot = false
-    var allowsAdditionalProperties = true
+    var allowsAdditionalProperties: Bool
+  }
+
+  private static func extractComponentDefinition(
+    from name: String,
+    schema: JSONValue,
+    context: DecodeContext,
+    allowedParents: [String]?,
+    allowedChildren: [String]?,
+    metadata: [String: JSONValue]?,
+    defaultAllowsAdditionalProperties: Bool
+  ) -> ComponentDefinition {
+    var mergedDefs = context.localDefs
+    if let schemaDefs = schema["$defs"]?.objectValue {
+      for (k, v) in schemaDefs where mergedDefs[k] == nil { mergedDefs[k] = v }
+    }
+    let ctx = DecodeContext(localDefs: mergedDefs, knownTypeNames: context.knownTypeNames)
+    var state = ComponentExtractionState(
+      allowsAdditionalProperties: defaultAllowsAdditionalProperties
+    )
+    extractComponentSchema(schema, root: schema, context: ctx, into: &state)
+    // Append deferred CatalogComponentCommon properties (e.g. v0.9 `weight`) after component's own.
+    for (k, v) in state.deferredCommonProperties where state.properties[k] == nil {
+      state.properties[k] = v
+      state.propertyBlockHasID[k] = false
+    }
+
+    let parameters = buildComponentParameters(from: &state, context: ctx)
+    // Explicit `Optional<JSONValue>.none` prevents `JSONValue`'s `ExpressibleByNilLiteral`
+    // conformance from promoting `nil` to `Optional.some(.null)`.
+    let rawRoot: JSONValue? =
+      state.hasUntranslatableRoot ? Optional(schema) : Optional<JSONValue>.none
+
+    return ComponentDefinition(
+      name: name,
+      description: schema["description"]?.stringValue ?? state.description,
+      isCheckable: state.isCheckable,
+      parameters: parameters,
+      atLeastOneOf: state.atLeastOneOf,
+      allowedParents: allowedParents
+        ?? schema["allowedParents"]?.arrayValue?.compactMap(\.stringValue),
+      allowedChildren: allowedChildren
+        ?? schema["allowedChildren"]?.arrayValue?.compactMap(\.stringValue),
+      metadata: metadata ?? schema["metadata"]?.dictionaryValue,
+      deprecated: schema["deprecated"]?.boolValue ?? false,
+      deprecatedReason: schema["x-deprecated-reason"]?.stringValue,
+      rawJSONSchema: rawRoot,
+      allowsAdditionalProperties: state.allowsAdditionalProperties
+    )
   }
 
   private static func extractComponentSchema(
     _ schema: JSONValue,
     root: JSONValue,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>,
-    visitedRefs: Set<String>,
+    context: DecodeContext,
     into state: inout ComponentExtractionState
   ) {
     guard let obj = schema.objectValue else { return }
-
     if state.description == nil, let desc = obj["description"]?.stringValue {
       state.description = desc
     }
-
     if obj["additionalProperties"]?.boolValue == false
       || obj["unevaluatedProperties"]?.boolValue == false
     {
@@ -909,22 +645,17 @@ public enum CatalogJSONSchemaCodec {
         state.isCheckable = true
         return
       }
-      if refName == "ComponentCommon" {
-        return
-      }
-      if ref.hasPrefix("#"), !visitedRefs.contains(ref) {
-        var nextVisited = visitedRefs
-        nextVisited.insert(ref)
-        if let target = resolveLocalPointer(ref, in: root) ?? localDefs[refName] {
-          extractComponentSchema(
-            target,
-            root: root,
-            localDefs: localDefs,
-            knownTypeNames: knownTypeNames,
-            visitedRefs: nextVisited,
-            into: &state
-          )
+      if refName == "ComponentCommon" { return }
+      if ref.hasPrefix("#"), !context.visitedRefs.contains(ref),
+        let target = resolveLocalPointer(ref, in: root) ?? context.localDefs[refName]
+      {
+        if refName == "CatalogComponentCommon", let props = target["properties"]?.objectValue {
+          for (k, v) in props { state.deferredCommonProperties[k] = v }
+          return
         }
+        var nextCtx = context
+        nextCtx.visitedRefs.insert(ref)
+        extractComponentSchema(target, root: root, context: nextCtx, into: &state)
       }
       return
     }
@@ -936,57 +667,44 @@ public enum CatalogJSONSchemaCodec {
         state.propertyBlockHasID[key] = blockHasID
       }
     }
-
     if let req = obj["required"]?.arrayValue {
-      for item in req {
-        if let name = item.stringValue {
-          state.required.insert(name)
-        }
-      }
+      for item in req { if let name = item.stringValue { state.required.insert(name) } }
     }
-
     if let anyOf = obj["anyOf"]?.arrayValue {
       if let group = extractRequiredGroup(from: anyOf) {
         state.atLeastOneOf.append(group)
       } else {
         state.hasUntranslatableRoot = true
+        for branch in anyOf {
+          extractComponentSchema(branch, root: root, context: context, into: &state)
+        }
       }
     }
-
+    if let oneOf = obj["oneOf"]?.arrayValue {
+      state.hasUntranslatableRoot = true
+      for branch in oneOf {
+        extractComponentSchema(branch, root: root, context: context, into: &state)
+      }
+    }
     if let allOf = obj["allOf"]?.arrayValue {
       for branch in allOf {
-        extractComponentSchema(
-          branch,
-          root: root,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs,
-          into: &state
-        )
+        extractComponentSchema(branch, root: root, context: context, into: &state)
       }
     }
   }
 
   private static func buildComponentParameters(
     from state: inout ComponentExtractionState,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>
+    context: DecodeContext
   ) -> [ParameterDefinition] {
     var parameters: [ParameterDefinition] = []
     for (propName, propSchema) in state.properties {
-      if propName == "component" {
+      if propName == "component" || propName == "@catalogId" || propName == "@accessibility"
+        || propName == "@metadata"
+      {
         continue
       }
-      if propName == "@catalogId" || propName == "@accessibility" || propName == "@metadata" {
-        continue
-      }
-      if propName == "@checks" {
-        if isCheckRuleListSchema(propSchema) {
-          state.isCheckable = true
-          continue
-        }
-      }
-      if propName == "checks" && isCheckRuleListSchema(propSchema) {
+      if (propName == "@checks" || propName == "checks") && isCheckRuleListSchema(propSchema) {
         state.isCheckable = true
         continue
       }
@@ -994,40 +712,29 @@ public enum CatalogJSONSchemaCodec {
         continue
       }
       let blockHasID = state.propertyBlockHasID[propName] ?? false
-      if propName == "id" {
-        let isEnvelopeID =
-          refSuffix(of: propSchema) == "ComponentId"
-          || propSchema["type"]?.stringValue == "string"
-        if isEnvelopeID {
-          continue
-        }
+      if propName == "id",
+        refSuffix(of: propSchema) == "ComponentId" || propSchema["type"]?.stringValue == "string"
+      {
+        continue
       }
       if propName == "catalogId", blockHasID, propSchema["type"]?.stringValue == "string" {
         continue
       }
       if propName == "metadata" {
-        if refSuffix(of: propSchema) == "ComponentCommonMetadata" {
-          continue
-        }
+        if refSuffix(of: propSchema) == "ComponentCommonMetadata" { continue }
         let metaKeys = propSchema["properties"]?.objectValue?.keys.map { $0 } ?? []
         if blockHasID && propSchema["type"]?.stringValue == "object" && metaKeys == ["extensions"] {
           continue
         }
       }
-
-      let translated = translateType(
-        propSchema,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: []
-      )
+      let translated = translateType(propSchema, context: context)
       parameters.append(
         ParameterDefinition(
           name: propName,
           type: translated.strippingParameterMetadata(),
           required: state.required.contains(propName),
           description: translated.description,
-          deprecated: translated.isDeprecated,
+          deprecated: translated.deprecated,
           deprecatedReason: translated.deprecatedReason
         )
       )
@@ -1035,20 +742,46 @@ public enum CatalogJSONSchemaCodec {
     return parameters
   }
 
+  private static func extractSurfacePropertiesDefinition(
+    from themeSchema: JSONValue,
+    context: DecodeContext
+  ) -> SurfacePropertiesDefinition {
+    guard let obj = themeSchema.objectValue else {
+      return SurfacePropertiesDefinition(rawJSONSchema: themeSchema)
+    }
+    let hasObjectWrapper =
+      obj["type"]?.stringValue == "object" || obj["properties"] != nil || obj["allOf"] != nil
+    if hasObjectWrapper {
+      guard let merged = extractMergedObjectSchema(themeSchema, context: context) else {
+        return SurfacePropertiesDefinition(
+          description: obj["description"]?.stringValue,
+          rawJSONSchema: themeSchema
+        )
+      }
+      return SurfacePropertiesDefinition(
+        description: obj["description"]?.stringValue,
+        properties: merged.properties,
+        additionalProperties: merged.additionalProperties,
+        rawJSONSchema: Optional<JSONValue>.none
+      )
+    }
+    let properties = translateObjectMembers(obj, required: [], context: context)
+    return SurfacePropertiesDefinition(
+      description: nil,
+      properties: properties,
+      additionalProperties: .allowed,
+      rawJSONSchema: Optional<JSONValue>.none
+    )
+  }
+
   private static func parseFunctions(
     from rawFunctions: JSONValue?,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>
+    context: DecodeContext
   ) throws -> [FunctionDefinition] {
     guard let rawFunctions else { return [] }
     if let obj = rawFunctions.objectValue {
       return obj.map { name, fnValue in
-        parseSingleFunction(
-          name: name,
-          fnValue: fnValue,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames
-        )
+        parseSingleFunction(name: name, fnValue: fnValue, context: context)
       }
     }
     if let arr = rawFunctions.arrayValue {
@@ -1056,135 +789,176 @@ public enum CatalogJSONSchemaCodec {
         guard let name = fnValue["name"]?.stringValue, !name.isEmpty else {
           throw A2UICatalogError("Function at index \(index) is missing a valid 'name'.")
         }
-        return parseSingleFunction(
-          name: name,
-          fnValue: fnValue,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames
-        )
+        return parseSingleFunction(name: name, fnValue: fnValue, context: context)
       }
     }
-    throw A2UICatalogError("Field 'functions' must be an object or array.")
+    return []
   }
 
   private static func parseSingleFunction(
     name: String,
     fnValue: JSONValue,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>
+    context: DecodeContext
   ) -> FunctionDefinition {
     let argsSchema = extractFunctionArgsSchema(from: fnValue)
-    let rawReturnType = fnValue["returnType"]?.stringValue ?? "any"
-    let returnDef = parseFunctionReturnShorthand(rawReturnType)
-    let allowedCallers =
+    let rawReturnType =
+      fnValue["returnType"]?.stringValue
+      ?? fnValue["properties"]?["returnType"]?["const"]?.stringValue
+      ?? "any"
+    let returnDef = CatalogDocumentCodec.parseReturnShorthand(rawReturnType) ?? .any
+    let callers =
       fnValue["allowedCallers"]?.stringValue.flatMap(AllowedCallers.init(rawValue:))
       ?? .rendererOnly
-    let requiresUserActivation = fnValue["requiresUserActivation"]?.boolValue ?? false
-    let description =
-      fnValue["description"]?.stringValue ?? argsSchema["description"]?.stringValue
-    return functionDefinition(
+    return extractFunctionDefinition(
       from: name,
       returnDefinition: returnDef,
       argsSchema: argsSchema,
-      description: description,
-      allowedCallers: allowedCallers,
-      requiresUserActivation: requiresUserActivation,
-      localDefs: localDefs,
-      knownTypeNames: knownTypeNames
+      description: fnValue["description"]?.stringValue,
+      allowedCallers: callers,
+      requiresUserActivation: fnValue["requiresUserActivation"]?.boolValue ?? false,
+      deprecated: fnValue["deprecated"]?.boolValue ?? false,
+      deprecatedReason: fnValue["x-deprecated-reason"]?.stringValue,
+      context: context
     )
   }
 
-  private static func functionDefinition(
+  private static func extractFunctionDefinition(
     from name: String,
     returnDefinition: FunctionReturnDefinition,
     argsSchema: JSONValue,
     description: String?,
     allowedCallers: AllowedCallers,
     requiresUserActivation: Bool,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>
+    deprecated: Bool,
+    deprecatedReason: String?,
+    context: DecodeContext
   ) -> FunctionDefinition {
-    guard let obj = argsSchema.objectValue else {
+    guard let obj = argsSchema.objectValue,
+      let merged = extractMergedObjectSchema(argsSchema, context: context)
+    else {
       return FunctionDefinition(
         name: name,
-        description: description,
+        description: description ?? argsSchema["description"]?.stringValue,
         returnType: returnDefinition,
         allowedCallers: allowedCallers,
         requiresUserActivation: requiresUserActivation,
+        deprecated: deprecated,
+        deprecatedReason: deprecatedReason,
         rawJSONSchema: argsSchema
       )
     }
-
-    var hasUntranslatable = obj.keys.contains { untranslatableObjectKeywords.contains($0) }
-    var atLeastOneOf: [[String]] = []
-    if let anyOf = obj["anyOf"]?.arrayValue {
-      if let group = extractRequiredGroup(from: anyOf) {
-        atLeastOneOf.append(group)
-      } else {
-        hasUntranslatable = true
-      }
-    }
-
-    let requiredSet = Set(obj["required"]?.arrayValue?.compactMap(\.stringValue) ?? [])
-    let propsObj = obj["properties"]?.objectValue ?? [:]
-    let parameters = propsObj.map { paramName, paramSchema -> ParameterDefinition in
-      let translated = translateType(
-        paramSchema,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: []
-      )
-      return ParameterDefinition(
-        name: paramName,
-        type: translated.strippingParameterMetadata(),
-        required: requiredSet.contains(paramName),
-        description: translated.description,
-        deprecated: translated.isDeprecated,
-        deprecatedReason: translated.deprecatedReason
-      )
-    }
-
-    let additional = translateAdditionalProperties(
-      object: obj,
-      localDefs: localDefs,
-      knownTypeNames: knownTypeNames,
-      visitedRefs: []
-    )
-    let resolvedDescription = description ?? obj["description"]?.stringValue
-
-    let untranslatableSchema: JSONValue? =
-      hasUntranslatable ? Optional(argsSchema) : Optional<JSONValue>.none
-
     return FunctionDefinition(
       name: name,
-      description: resolvedDescription,
+      description: description ?? obj["description"]?.stringValue,
       returnType: returnDefinition,
       allowedCallers: allowedCallers,
       requiresUserActivation: requiresUserActivation,
-      parameters: parameters,
-      atLeastOneOf: atLeastOneOf,
-      additionalParameters: additional,
-      deprecated: obj["deprecated"]?.boolValue ?? false,
-      rawJSONSchema: untranslatableSchema
+      parameters: merged.properties,
+      atLeastOneOf: merged.atLeastOneOf,
+      additionalParameters: merged.additionalProperties,
+      deprecated: deprecated || (obj["deprecated"]?.boolValue ?? false),
+      deprecatedReason: deprecatedReason ?? obj["x-deprecated-reason"]?.stringValue,
+      rawJSONSchema: Optional<JSONValue>.none
     )
+  }
+
+  private struct ObjectSchemaParts {
+    var rawProps: OrderedDictionary<String, JSONValue> = [:]
+    var required: Set<String> = []
+    var atLeastOneOf: [[String]] = []
+    var explicitAdditional: AdditionalProperties?
+  }
+
+  /// Extracts a merged object schema (supporting `properties`, `required`, single-group `anyOf`,
+  /// `allOf` of `anyOf`-required groups, and `allOf` of local-ref / object sub-schemas).
+  /// Returns `nil` when the schema contains untranslatable object keywords.
+  private static func extractMergedObjectSchema(
+    _ schema: JSONValue,
+    context: DecodeContext
+  ) -> (
+    properties: [ParameterDefinition],
+    additionalProperties: AdditionalProperties,
+    atLeastOneOf: [[String]]
+  )? {
+    var parts = ObjectSchemaParts()
+    guard collectObjectSchemaParts(schema, context: context, into: &parts) else { return nil }
+    let properties = translateObjectMembers(
+      parts.rawProps,
+      required: parts.required,
+      context: context
+    )
+    return (properties, parts.explicitAdditional ?? .allowed, parts.atLeastOneOf)
+  }
+
+  private static func collectObjectSchemaParts(
+    _ schema: JSONValue,
+    context: DecodeContext,
+    into parts: inout ObjectSchemaParts
+  ) -> Bool {
+    guard let obj = schema.objectValue else { return false }
+    if obj.keys.contains(where: { untranslatableObjectKeywords.contains($0) }) { return false }
+
+    if let ref = obj["$ref"]?.stringValue {
+      guard ref.hasPrefix("#/$defs/"), !context.visitedRefs.contains(ref) else { return false }
+      let defName = String(ref.dropFirst("#/$defs/".count))
+      guard let target = context.localDefs[defName] else { return false }
+      var nextCtx = context
+      nextCtx.visitedRefs.insert(ref)
+      return collectObjectSchemaParts(target, context: nextCtx, into: &parts)
+    }
+
+    if let props = obj["properties"]?.objectValue {
+      for (k, v) in props { parts.rawProps[k] = v }
+    }
+    if let req = obj["required"]?.arrayValue {
+      for item in req { if let s = item.stringValue { parts.required.insert(s) } }
+    }
+    if let anyOf = obj["anyOf"]?.arrayValue {
+      guard let group = extractRequiredGroup(from: anyOf) else { return false }
+      parts.atLeastOneOf.append(group)
+    }
+    if let allOf = obj["allOf"]?.arrayValue {
+      for branch in allOf {
+        guard collectObjectSchemaParts(branch, context: context, into: &parts) else { return false }
+      }
+    }
+    if obj["additionalProperties"] != nil || obj["unevaluatedProperties"] != nil {
+      parts.explicitAdditional = translateAdditionalProperties(object: obj, context: context)
+    }
+    return true
+  }
+
+  private static func translateObjectMembers(
+    _ rawProps: OrderedDictionary<String, JSONValue>,
+    required: Set<String>,
+    context: DecodeContext
+  ) -> [ParameterDefinition] {
+    rawProps.map { key, propSchema in
+      let translated = translateType(propSchema, context: context)
+      return ParameterDefinition(
+        name: key,
+        type: translated.strippingParameterMetadata(),
+        required: required.contains(key),
+        description: translated.description,
+        deprecated: translated.deprecated,
+        deprecatedReason: translated.deprecatedReason
+      )
+    }
   }
 
   private static func translateType(
     _ schema: JSONValue,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>,
-    visitedRefs: Set<String>
+    context: DecodeContext
   ) -> TypeDefinition {
-    guard let obj = schema.objectValue else {
-      return .rawJSONSchema(schema)
-    }
+    guard let obj = schema.objectValue else { return .rawJSONSchema(schema) }
 
-    let rawDesc = obj["description"]?.stringValue
+    let desc = obj["description"]?.stringValue
     let deprecated = obj["deprecated"]?.boolValue ?? false
+    let depReason = obj["x-deprecated-reason"]?.stringValue
 
     // Legacy "REF:<uri>|<optional description>" smuggling convention.
-    if let rawDesc, rawDesc.hasPrefix("REF:") {
-      let parts = rawDesc.dropFirst(4).split(separator: "|", maxSplits: 1)
+    if let desc, desc.hasPrefix("REF:") {
+      let parts = desc.dropFirst(4).split(separator: "|", maxSplits: 1)
       let refURI = parts.first.map(String.init) ?? ""
       let customDesc = parts.count > 1 && !parts[1].isEmpty ? String(parts[1]) : nil
       if let mapped = translateRef(
@@ -1192,39 +966,72 @@ public enum CatalogJSONSchemaCodec {
         defaultValue: obj["default"],
         description: customDesc,
         deprecated: deprecated,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs
+        deprecatedReason: depReason,
+        context: context
       ) {
         return mapped
       }
+      // Preserve unrecognized REF smuggling (e.g. custom common type) for legacy processRefs.
+      return .rawJSONSchema(schema)
     }
 
     if let ref = obj["$ref"]?.stringValue {
       if let mapped = translateRef(
         ref,
         defaultValue: obj["default"],
-        description: rawDesc,
+        description: desc,
         deprecated: deprecated,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs
+        deprecatedReason: depReason,
+        context: context
       ) {
         return mapped
       }
       return .rawJSONSchema(schema)
     }
 
-    // DateTimeInput.min / max pattern: allOf: [DynamicString, { if: {type: string}, then: {oneOf:
-    // [{format: ...}]}}]
+    // Non-nullable static `any`: `{"not": {"type": "null"}}`.
+    if let notObj = obj["not"]?.objectValue,
+      notObj.count == 1,
+      notObj["type"]?.stringValue == "null",
+      obj.keys.allSatisfy({ $0 == "not" || metadataOnlyKeys.contains($0) })
+    {
+      return .any(
+        dynamic: false,
+        nullable: false,
+        defaultValue: obj["default"],
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
+      )
+    }
+
+    let typeName = obj["type"]?.stringValue
+
+    // DateTimeInput min/max pattern or merged object `allOf` (e.g. CompositeOption / multi-group).
     if let allOf = obj["allOf"]?.arrayValue {
       if let dynamicFormatted = translateDynamicFormattedAllOf(
         allOf,
         defaultValue: obj["default"],
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       ) {
         return dynamicFormatted
+      }
+      if let merged = extractMergedObjectSchema(schema, context: context),
+        typeName == "object" || obj["properties"] != nil || !merged.properties.isEmpty
+          || !merged.atLeastOneOf.isEmpty
+      {
+        return .object(
+          dynamic: false,
+          properties: merged.properties,
+          additionalProperties: merged.additionalProperties,
+          atLeastOneOf: merged.atLeastOneOf,
+          defaultValue: obj["default"]?.dictionaryValue,
+          description: desc,
+          deprecated: deprecated,
+          deprecatedReason: depReason
+        )
       }
       return .rawJSONSchema(schema)
     }
@@ -1234,18 +1041,73 @@ public enum CatalogJSONSchemaCodec {
     }
 
     if let constVal = obj["const"] {
-      return .const(value: constVal, description: rawDesc, deprecated: deprecated)
+      guard isJSONScalar(constVal) else { return .rawJSONSchema(schema) }
+      return .const(
+        value: constVal,
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
+      )
     }
 
     if let enumValues = obj["enum"]?.arrayValue, !enumValues.isEmpty {
-      let valueType = inferEnumValueType(enumValues, declaredType: obj["type"]?.stringValue)
+      guard let valueType = homogeneousEnumValueType(enumValues, declaredType: typeName) else {
+        return .rawJSONSchema(schema)
+      }
       return .enum(
         values: enumValues,
         valueType: valueType,
         dynamic: false,
         defaultValue: obj["default"],
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
+      )
+    }
+
+    // Multi-format string: `{"type": "string", "oneOf": [{"format": "date"}, ...]}`.
+    if typeName == "string" {
+      let multiFormats: [String]?
+      if let oneOf = obj["oneOf"]?.arrayValue {
+        guard let extracted = extractFormatOnlyBranches(oneOf) else {
+          return .rawJSONSchema(schema)
+        }
+        multiFormats = extracted
+      } else if let anyOf = obj["anyOf"]?.arrayValue {
+        guard let extracted = extractFormatOnlyBranches(anyOf) else {
+          return .rawJSONSchema(schema)
+        }
+        multiFormats = extracted
+      } else {
+        multiFormats = obj["format"]?.stringValue.map { [$0] }
+      }
+      return .string(
+        dynamic: false,
+        formats: multiFormats,
+        pattern: obj["pattern"]?.stringValue,
+        minLength: obj["minLength"]?.intValue,
+        maxLength: obj["maxLength"]?.intValue,
+        defaultValue: obj["default"]?.stringValue,
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
+      )
+    }
+
+    // Object with `atLeastOneOf` (`anyOf`) before generic value union.
+    if typeName == "object" || obj["properties"] != nil {
+      guard let merged = extractMergedObjectSchema(schema, context: context) else {
+        return .rawJSONSchema(schema)
+      }
+      return .object(
+        dynamic: false,
+        properties: merged.properties,
+        additionalProperties: merged.additionalProperties,
+        atLeastOneOf: merged.atLeastOneOf,
+        defaultValue: obj["default"]?.dictionaryValue,
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       )
     }
 
@@ -1254,169 +1116,114 @@ public enum CatalogJSONSchemaCodec {
         oneOf,
         exclusive: true,
         defaultValue: obj["default"],
-        description: rawDesc,
+        description: desc,
         deprecated: deprecated,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs,
+        deprecatedReason: depReason,
+        context: context,
         original: schema
       )
     }
 
     if let anyOf = obj["anyOf"]?.arrayValue {
-      // Check if this is an object schema carrying an `atLeastOneOf` constraint rather than a
-      // value union.
-      if obj["type"]?.stringValue != "object" && obj["properties"] == nil {
-        return translateUnionBranches(
-          anyOf,
-          exclusive: false,
-          defaultValue: obj["default"],
-          description: rawDesc,
-          deprecated: deprecated,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs,
-          original: schema
-        )
-      }
+      return translateUnionBranches(
+        anyOf,
+        exclusive: false,
+        defaultValue: obj["default"],
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason,
+        context: context,
+        original: schema
+      )
     }
 
-    // Multi-type array, e.g. `"type": ["number", "string"]` (FormatCurrency / Pluralize).
     if let typeArray = obj["type"]?.arrayValue {
       let typeNames = typeArray.compactMap(\.stringValue)
-      let nonNullTypes = typeNames.filter { $0 != "null" }
-      if nonNullTypes.count >= 2 && nonNullTypes.count == typeNames.count {
-        let variants = nonNullTypes.compactMap { simplePrimitiveType(named: $0) }
-        if variants.count == nonNullTypes.count {
+      let nonNull = typeNames.filter { $0 != "null" }
+      if nonNull.count >= 2 && nonNull.count == typeNames.count {
+        let variants = nonNull.compactMap(simplePrimitiveType)
+        if variants.count == nonNull.count {
           return .union(
             variants: variants,
             exclusive: false,
             dynamic: false,
             defaultValue: obj["default"],
-            description: rawDesc,
-            deprecated: deprecated
+            description: desc,
+            deprecated: deprecated,
+            deprecatedReason: depReason
           )
         }
       }
       return .rawJSONSchema(schema)
     }
 
-    let typeName = obj["type"]?.stringValue
-    if typeName == "string" {
-      let formats = obj["format"]?.stringValue.map { [$0] }
-      return .string(
-        dynamic: false,
-        formats: formats,
-        pattern: obj["pattern"]?.stringValue,
-        minLength: obj["minLength"]?.intValue,
-        maxLength: obj["maxLength"]?.intValue,
-        defaultValue: obj["default"]?.stringValue,
-        description: rawDesc,
-        deprecated: deprecated
-      )
-    }
-    if typeName == "number" {
+    switch typeName {
+    case "number":
       return .number(
         dynamic: false,
         min: obj["minimum"]?.doubleValue,
         max: obj["maximum"]?.doubleValue,
         defaultValue: obj["default"]?.doubleValue,
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       )
-    }
-    if typeName == "integer" {
+    case "integer":
       return .integer(
         dynamic: false,
         min: obj["minimum"]?.intValue,
         max: obj["maximum"]?.intValue,
         defaultValue: obj["default"]?.intValue,
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       )
-    }
-    if typeName == "boolean" {
+    case "boolean":
       return .boolean(
         dynamic: false,
         defaultValue: obj["default"]?.boolValue,
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       )
-    }
-    if typeName == "array" || obj["items"] != nil {
-      let items = obj["items"].map {
-        translateType(
-          $0,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs
-        )
-      }
+    case "array":
       return .array(
         dynamic: false,
-        items: items,
+        items: obj["items"].map { translateType($0, context: context) },
         minItems: obj["minItems"]?.intValue,
         maxItems: obj["maxItems"]?.intValue,
         uniqueItems: obj["uniqueItems"]?.boolValue ?? false,
         defaultValue: obj["default"]?.arrayValue,
-        description: rawDesc,
-        deprecated: deprecated
+        description: desc,
+        deprecated: deprecated,
+        deprecatedReason: depReason
       )
-    }
-    if typeName == "object" || obj["properties"] != nil {
-      var atLeastOneOf: [[String]] = []
-      if let anyOf = obj["anyOf"]?.arrayValue {
-        guard let group = extractRequiredGroup(from: anyOf) else {
-          return .rawJSONSchema(schema)
-        }
-        atLeastOneOf.append(group)
-      }
-      let requiredSet = Set(obj["required"]?.arrayValue?.compactMap(\.stringValue) ?? [])
-      let props = (obj["properties"]?.objectValue ?? [:]).map { k, v -> ParameterDefinition in
-        let translated = translateType(
-          v,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs
-        )
-        return ParameterDefinition(
-          name: k,
-          type: translated.strippingParameterMetadata(),
-          required: requiredSet.contains(k),
-          description: translated.description,
-          deprecated: translated.isDeprecated,
-          deprecatedReason: translated.deprecatedReason
+    default:
+      if obj["items"] != nil {
+        return .array(
+          dynamic: false,
+          items: obj["items"].map { translateType($0, context: context) },
+          minItems: obj["minItems"]?.intValue,
+          maxItems: obj["maxItems"]?.intValue,
+          uniqueItems: obj["uniqueItems"]?.boolValue ?? false,
+          defaultValue: obj["default"]?.arrayValue,
+          description: desc,
+          deprecated: deprecated,
+          deprecatedReason: depReason
         )
       }
-      let additional = translateAdditionalProperties(
-        object: obj,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs
-      )
-      return .object(
-        dynamic: false,
-        properties: props,
-        additionalProperties: additional,
-        atLeastOneOf: atLeastOneOf,
-        defaultValue: obj["default"]?.dictionaryValue,
-        description: rawDesc,
-        deprecated: deprecated
-      )
+      if obj.keys.allSatisfy({ metadataOnlyKeys.contains($0) }) {
+        return .any(
+          dynamic: true,
+          nullable: true,
+          defaultValue: obj["default"],
+          description: desc,
+          deprecated: deprecated,
+          deprecatedReason: depReason
+        )
+      }
+      return .rawJSONSchema(schema)
     }
-
-    // Unconstrained schema `{}` (only metadata keys like description/default): e.g. required.value.
-    if obj.keys.allSatisfy({ metadataOnlyKeys.contains($0) }) {
-      return .any(
-        dynamic: true,
-        nullable: true,
-        defaultValue: obj["default"],
-        description: rawDesc,
-        deprecated: deprecated
-      )
-    }
-
-    return .rawJSONSchema(schema)
   }
 
   private static func translateRef(
@@ -1424,120 +1231,78 @@ public enum CatalogJSONSchemaCodec {
     defaultValue: JSONValue?,
     description: String?,
     deprecated: Bool,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>,
-    visitedRefs: Set<String>
+    deprecatedReason: String?,
+    context: DecodeContext
   ) -> TypeDefinition? {
     let suffix = ref.split(separator: "/").last.map(String.init) ?? ""
+    let base: TypeDefinition?
     switch suffix {
-    case "DynamicString":
-      return .string(
-        dynamic: true,
-        defaultValue: defaultValue?.stringValue,
-        description: description,
-        deprecated: deprecated
-      )
-    case "DynamicNumber":
-      return .number(
-        dynamic: true,
-        defaultValue: defaultValue?.doubleValue,
-        description: description,
-        deprecated: deprecated
-      )
-    case "DynamicBoolean":
-      return .boolean(
-        dynamic: true,
-        defaultValue: defaultValue?.boolValue,
-        description: description,
-        deprecated: deprecated
-      )
-    case "DynamicStringList":
-      return .array(
-        dynamic: true,
-        items: .string(),
-        defaultValue: defaultValue?.arrayValue,
-        description: description,
-        deprecated: deprecated
-      )
-    case "DynamicValue":
-      return .any(
-        dynamic: true,
-        nullable: false,
-        defaultValue: defaultValue,
-        description: description,
-        deprecated: deprecated
-      )
-    case "DataBinding":
-      return .dataBinding(description: description, deprecated: deprecated)
-    case "FunctionCall":
-      return .functionCall(description: description, deprecated: deprecated)
-    case "Child", "ComponentId":
-      return .child(description: description, deprecated: deprecated)
-    case "ChildList":
-      return .childList(description: description, deprecated: deprecated)
-    case "Action":
-      return .action(description: description, deprecated: deprecated)
-    case "CheckRule":
-      return .checkRule(description: description, deprecated: deprecated)
-    case "AccessibilityAttributes":
-      return .accessibility(description: description, deprecated: deprecated)
+    case "DynamicString": base = .string(dynamic: true)
+    case "DynamicNumber": base = .number(dynamic: true)
+    case "DynamicBoolean": base = .boolean(dynamic: true)
+    case "DynamicStringList": base = .array(dynamic: true, items: .string())
+    case "DynamicValue": base = .any(dynamic: true, nullable: false)
+    case "DataBinding": base = .dataBinding()
+    case "FunctionCall": base = .functionCall()
+    case "Child", "ComponentId": base = .child()
+    case "ChildList": base = .childList()
+    case "Action": base = .action()
+    case "CheckRule": base = .checkRule()
+    case "AccessibilityAttributes": base = .accessibility()
     default:
       if ref.hasPrefix("#/$defs/") {
-        if knownTypeNames.contains(suffix) {
-          return .ref(
-            suffix,
-            defaultValue: defaultValue,
-            description: description,
-            deprecated: deprecated
-          )
+        if context.knownTypeNames.contains(suffix) {
+          base = .ref(suffix)
+        } else if !context.visitedRefs.contains(ref), let target = context.localDefs[suffix] {
+          var nextCtx = context
+          nextCtx.visitedRefs.insert(ref)
+          base = translateType(target, context: nextCtx)
+        } else {
+          base = nil
         }
-        if !visitedRefs.contains(ref), let target = localDefs[suffix] {
-          var nextVisited = visitedRefs
-          nextVisited.insert(ref)
-          return translateType(
-            target,
-            localDefs: localDefs,
-            knownTypeNames: knownTypeNames,
-            visitedRefs: nextVisited
-          )
-        }
+      } else {
+        base = nil
       }
-      return nil
     }
+    guard var result = base else { return nil }
+    result = result.withDefault(defaultValue)
+    if let description { result.description = description }
+    if deprecated { result.deprecated = true }
+    if let deprecatedReason { result.deprecatedReason = deprecatedReason }
+    return result
   }
 
   private static func translateDynamicFormattedAllOf(
     _ branches: [JSONValue],
     defaultValue: JSONValue?,
     description: String?,
-    deprecated: Bool
+    deprecated: Bool,
+    deprecatedReason: String?
   ) -> TypeDefinition? {
     guard branches.count == 2 else { return nil }
     var hasDynamicString = false
-    var extractedFormats: [String]?
+    var formats: [String]?
     for branch in branches {
       if refSuffix(of: branch) == "DynamicString" {
         hasDynamicString = true
-      } else if branch["if"]?["type"]?.stringValue == "string",
-        let thenSchema = branch["then"]
-      {
+      } else if branch["if"]?["type"]?.stringValue == "string", let thenSchema = branch["then"] {
         if let single = thenSchema["format"]?.stringValue {
-          extractedFormats = [single]
-        } else if let oneOf = thenSchema["oneOf"]?.arrayValue {
-          let formats = oneOf.compactMap { $0["format"]?.stringValue }
-          if formats.count == oneOf.count && !formats.isEmpty {
-            extractedFormats = formats
-          }
+          formats = [single]
+        } else if let oneOf = thenSchema["oneOf"]?.arrayValue,
+          let extracted = extractFormatOnlyBranches(oneOf)
+        {
+          formats = extracted
         }
       }
     }
-    guard hasDynamicString, let extractedFormats else { return nil }
+    guard hasDynamicString, let formats else { return nil }
     return .string(
       dynamic: true,
-      formats: extractedFormats,
+      formats: formats,
       defaultValue: defaultValue?.stringValue,
       description: description,
-      deprecated: deprecated
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
     )
   }
 
@@ -1547,16 +1312,13 @@ public enum CatalogJSONSchemaCodec {
     defaultValue: JSONValue?,
     description: String?,
     deprecated: Bool,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>,
-    visitedRefs: Set<String>,
+    deprecatedReason: String?,
+    context: DecodeContext,
     original: JSONValue
   ) -> TypeDefinition {
-    // Recognize canonical dynamic wrapper: `[<literal>, DataBinding, FunctionCall]`
     var hasDataBinding = false
     var hasFunctionCall = false
     var literalBranches: [JSONValue] = []
-
     for branch in branches {
       if isDataBindingBranch(branch) {
         hasDataBinding = true
@@ -1567,515 +1329,553 @@ public enum CatalogJSONSchemaCodec {
       }
     }
 
-    if hasDataBinding && hasFunctionCall && literalBranches.count == 1 {
-      let inner = translateType(
-        literalBranches[0],
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs
-      )
-      if !inner.containsRawJSONSchema {
-        return attachMetadata(
-          to: inner.withDynamic(true),
-          defaultValue: defaultValue,
-          description: description,
-          deprecated: deprecated
-        )
+    if hasDataBinding && hasFunctionCall && !literalBranches.isEmpty {
+      if literalBranches.count == 1 {
+        var inner = translateType(literalBranches[0], context: context)
+        if !inner.containsRawJSONSchema {
+          inner = inner.withDynamic(true).withDefault(defaultValue)
+          if let description { inner.description = description }
+          if deprecated { inner.deprecated = true }
+          if let deprecatedReason { inner.deprecatedReason = deprecatedReason }
+          return inner
+        }
+      } else {
+        let variants = literalBranches.map { translateType($0, context: context) }
+        if !variants.contains(where: \.containsRawJSONSchema) {
+          return .union(
+            variants: variants,
+            exclusive: exclusive,
+            dynamic: true,
+            defaultValue: defaultValue,
+            description: description,
+            deprecated: deprecated,
+            deprecatedReason: deprecatedReason
+          )
+        }
       }
     }
 
     guard branches.count >= 2 else {
-      if let only = branches.first {
-        return translateType(
-          only,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs
-        )
-      }
+      if let only = branches.first { return translateType(only, context: context) }
       return .rawJSONSchema(original)
     }
-
-    let variants = branches.map {
-      translateType(
-        $0,
-        localDefs: localDefs,
-        knownTypeNames: knownTypeNames,
-        visitedRefs: visitedRefs
-      )
-    }
     return .union(
-      variants: variants,
+      variants: branches.map { translateType($0, context: context) },
       exclusive: exclusive,
       dynamic: false,
       defaultValue: defaultValue,
       description: description,
-      deprecated: deprecated
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
     )
-  }
-
-  private static func attachMetadata(
-    to type: TypeDefinition,
-    defaultValue: JSONValue?,
-    description: String?,
-    deprecated: Bool
-  ) -> TypeDefinition {
-    let effectiveDesc = description ?? type.description
-    let effectiveDeprecated = deprecated || type.isDeprecated
-    switch type {
-    case .string(let dyn, let formats, let pattern, let minL, let maxL, let def, _, _, let reason):
-      return .string(
-        dynamic: dyn,
-        formats: formats,
-        pattern: pattern,
-        minLength: minL,
-        maxLength: maxL,
-        defaultValue: defaultValue?.stringValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .number(let dyn, let min, let max, let def, _, _, let reason):
-      return .number(
-        dynamic: dyn,
-        min: min,
-        max: max,
-        defaultValue: defaultValue?.doubleValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .integer(let dyn, let min, let max, let def, _, _, let reason):
-      return .integer(
-        dynamic: dyn,
-        min: min,
-        max: max,
-        defaultValue: defaultValue?.intValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .boolean(let dyn, let def, _, _, let reason):
-      return .boolean(
-        dynamic: dyn,
-        defaultValue: defaultValue?.boolValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .enum(let values, let valueType, let dyn, let def, _, _, let reason):
-      return .enum(
-        values: values,
-        valueType: valueType,
-        dynamic: dyn,
-        defaultValue: defaultValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .array(let dyn, let items, let minI, let maxI, let unique, let def, _, _, let reason):
-      return .array(
-        dynamic: dyn,
-        items: items,
-        minItems: minI,
-        maxItems: maxI,
-        uniqueItems: unique,
-        defaultValue: defaultValue?.arrayValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    case .object(let dyn, let props, let add, let groups, let def, _, _, let reason):
-      return .object(
-        dynamic: dyn,
-        properties: props,
-        additionalProperties: add,
-        atLeastOneOf: groups,
-        defaultValue: defaultValue?.dictionaryValue ?? def,
-        description: effectiveDesc,
-        deprecated: effectiveDeprecated,
-        deprecatedReason: reason
-      )
-    default:
-      return type
-    }
   }
 
   private static func translateAdditionalProperties(
     object: OrderedDictionary<String, JSONValue>,
-    localDefs: OrderedDictionary<String, JSONValue>,
-    knownTypeNames: Set<String>,
-    visitedRefs: Set<String>
+    context: DecodeContext
   ) -> AdditionalProperties {
-    if let additional = object["additionalProperties"] {
-      if let flag = additional.boolValue {
-        return flag ? .allowed : .disallowed
-      }
-      return .typed(
-        translateType(
-          additional,
-          localDefs: localDefs,
-          knownTypeNames: knownTypeNames,
-          visitedRefs: visitedRefs
-        )
-      )
-    }
-    if object["unevaluatedProperties"]?.boolValue == false {
-      return .disallowed
-    }
+    let raw = object["additionalProperties"] ?? object["unevaluatedProperties"]
+    guard let raw else { return .allowed }
+    if let flag = raw.boolValue { return flag ? .allowed : .disallowed }
+    if raw.objectValue != nil { return .typed(translateType(raw, context: context)) }
     return .allowed
   }
 
   // MARK: - Private Model -> JSON Schema Emission
 
-  private static func parameterToJSONSchema(
-    _ param: ParameterDefinition,
+  private static func buildCompiledComponentSchema(
+    _ definition: ComponentDefinition,
     version: A2UIProtocolVersion,
-    localTypes: [String: TypeDefinition],
-    useAbsoluteCommonURIs: Bool,
-    inlineLocalTypes: Bool
+    localTypes: [String: TypeDefinition]
   ) -> JSONValue {
-    let raw = typeToJSONSchema(
-      param.type,
+    if let raw = definition.rawJSONSchema { return raw }
+    let ctx = EncodeContext(
       version: version,
       localTypes: localTypes,
-      useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-      inlineLocalTypes: inlineLocalTypes
+      useAbsoluteCommonURIs: true,
+      inlineLocalTypes: true
     )
-    guard var obj = raw.objectValue else { return raw }
-    if let desc = param.effectiveDescription, obj["description"] == nil {
-      obj["description"] = .string(desc)
+    var defsNeeded: Set<String> = []
+    var props: OrderedDictionary<String, JSONValue> = [
+      "id": .object(["$ref": .string(commonRef("ComponentId", context: ctx))]),
+      "component": .object(["const": .string(definition.name)]),
+    ]
+    if version.isAtLeastV10 {
+      props["@catalogId"] = .object(["type": .string("string")])
+      props["@accessibility"] = .object([
+        "$ref": .string(commonRef("AccessibilityAttributes", context: ctx))
+      ])
+      props["@metadata"] = .object([
+        "type": .string("object"),
+        "properties": .object([
+          "extensions": .object(["$ref": .string(commonRef("Extensions", context: ctx))])
+        ]),
+        "additionalProperties": .boolean(false),
+      ])
+      if definition.isCheckable {
+        props["@checks"] = .object([
+          "type": .string("array"),
+          "items": .object(["$ref": .string(commonRef("CheckRule", context: ctx))]),
+        ])
+      }
+    } else {
+      props["accessibility"] = .object([
+        "$ref": .string(commonRef("AccessibilityAttributes", context: ctx))
+      ])
+      if definition.isCheckable {
+        props["checks"] = .object([
+          "type": .string("array"),
+          "items": .object(["$ref": .string(commonRef("CheckRule", context: ctx))]),
+        ])
+      }
     }
-    if param.isEffectivelyDeprecated {
-      obj["deprecated"] = .boolean(true)
+
+    var required: [JSONValue] = [.string("component")]
+    for param in definition.parameters {
+      props[param.name] = parameterToJSONSchema(param, context: ctx, referencedDefs: &defsNeeded)
+      if param.required { required.append(.string(param.name)) }
+    }
+
+    var obj: OrderedDictionary<String, JSONValue> = [
+      "type": .string("object"),
+      "properties": .object(props),
+      "required": .array(required),
+    ]
+    applyAtLeastOneOf(definition.atLeastOneOf, to: &obj)
+    if !definition.allowsAdditionalProperties {
+      obj["additionalProperties"] = .boolean(false)
+    }
+    return attachingDefsIfNeeded(
+      .object(obj),
+      names: defsNeeded,
+      version: version,
+      localTypes: localTypes,
+      useAbsoluteCommonURIs: true
+    )
+  }
+
+  private static func buildInlineComponentSchema(
+    _ definition: ComponentDefinition,
+    envelopeRef: String,
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    if let raw = definition.rawJSONSchema { return raw }
+    var props: OrderedDictionary<String, JSONValue> = [
+      "component": .object(["const": .string(definition.name)])
+    ]
+    var required: [JSONValue] = [.string("component")]
+    for param in definition.parameters {
+      props[param.name] = parameterToJSONSchema(
+        param,
+        context: context,
+        referencedDefs: &referencedDefs
+      )
+      if param.required { required.append(.string(param.name)) }
+    }
+
+    if context.version.isAtLeastV10 {
+      var coreObj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
+      if let desc = definition.description, !definition.isCheckable {
+        coreObj["description"] = .string(desc)
+      }
+      coreObj["properties"] = .object(props)
+      coreObj["required"] = .array(required)
+      applyAtLeastOneOf(definition.atLeastOneOf, to: &coreObj)
+
+      var result: OrderedDictionary<String, JSONValue>
+      if definition.isCheckable {
+        result = ["type": .string("object")]
+        if let desc = definition.description { result["description"] = .string(desc) }
+        result["allOf"] = .array([
+          .object(["$ref": .string(commonRef("Checkable", context: context))]),
+          .object(coreObj),
+        ])
+      } else {
+        result = coreObj
+      }
+      if let parents = definition.allowedParents {
+        result["allowedParents"] = .array(parents.map(JSONValue.string))
+      }
+      if let children = definition.allowedChildren {
+        result["allowedChildren"] = .array(children.map(JSONValue.string))
+      }
+      if let metadata = definition.metadata {
+        var ordered: OrderedDictionary<String, JSONValue> = [:]
+        for key in metadata.keys.sorted() { ordered[key] = metadata[key] }
+        result["metadata"] = .object(ordered)
+      }
+      if definition.deprecated { result["deprecated"] = .boolean(true) }
+      if let reason = definition.deprecatedReason {
+        result["x-deprecated-reason"] = .string(reason)
+      }
+      return .object(result)
+    }
+
+    var allOfBranches: [JSONValue] = [.object(["$ref": .string(envelopeRef)])]
+    if definition.isCheckable {
+      allOfBranches.append(.object(["$ref": .string(commonRef("Checkable", context: context))]))
+    }
+    var inner: OrderedDictionary<String, JSONValue> = [
+      "properties": .object(props),
+      "required": .array(required),
+    ]
+    if let desc = definition.description { inner["description"] = .string(desc) }
+    applyAtLeastOneOf(definition.atLeastOneOf, to: &inner)
+    allOfBranches.append(.object(inner))
+    var result: OrderedDictionary<String, JSONValue> = [
+      "type": .string("object"),
+      "allOf": .array(allOfBranches),
+      "unevaluatedProperties": .boolean(false),
+    ]
+    if definition.deprecated { result["deprecated"] = .boolean(true) }
+    if let reason = definition.deprecatedReason { result["x-deprecated-reason"] = .string(reason) }
+    return .object(result)
+  }
+
+  private static func buildV10FunctionSchema(
+    _ definition: FunctionDefinition,
+    context: EncodeContext,
+    alwaysCloseArgs: Bool,
+    alwaysEmitCallerFlags: Bool,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    var obj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
+    if let desc = definition.description { obj["description"] = .string(desc) }
+    obj["returnType"] = .string(definition.returnType.functionReturnType.rawValue)
+    if alwaysEmitCallerFlags || definition.allowedCallers != .rendererOnly {
+      obj["allowedCallers"] = .string(definition.allowedCallers.rawValue)
+    }
+    if alwaysEmitCallerFlags || definition.requiresUserActivation {
+      obj["requiresUserActivation"] = .boolean(definition.requiresUserActivation)
+    }
+    let argsSchema = buildFunctionArgsSchema(
+      definition,
+      context: context,
+      forceClosedArgs: alwaysCloseArgs,
+      referencedDefs: &referencedDefs
+    )
+    obj["properties"] = .object([
+      "@call": .object(["const": .string(definition.name)]),
+      "args": argsSchema,
+    ])
+    let requiresArgs =
+      definition.parameters.contains(where: \.required) || !definition.atLeastOneOf.isEmpty
+    obj["required"] = .array(
+      requiresArgs ? [.string("@call"), .string("args")] : [.string("@call")])
+    if definition.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = definition.deprecatedReason { obj["x-deprecated-reason"] = .string(reason) }
+    return .object(obj)
+  }
+
+  private static func buildV09MapFunctionSchema(
+    _ definition: FunctionDefinition,
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    var obj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
+    if let desc = definition.description { obj["description"] = .string(desc) }
+    let argsSchema = buildFunctionArgsSchema(
+      definition,
+      context: context,
+      forceClosedArgs: false,
+      referencedDefs: &referencedDefs
+    )
+    obj["properties"] = .object([
+      "call": .object(["const": .string(definition.name)]),
+      "args": argsSchema,
+      "returnType": .object(["const": .string(definition.returnType.functionReturnType.rawValue)]),
+    ])
+    let requiresArgs =
+      definition.parameters.contains(where: \.required) || !definition.atLeastOneOf.isEmpty
+    obj["required"] = .array(requiresArgs ? [.string("call"), .string("args")] : [.string("call")])
+    obj["unevaluatedProperties"] = .boolean(false)
+    if definition.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = definition.deprecatedReason { obj["x-deprecated-reason"] = .string(reason) }
+    return .object(obj)
+  }
+
+  private static func buildFunctionArgsSchema(
+    _ definition: FunctionDefinition,
+    context: EncodeContext,
+    forceClosedArgs: Bool,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    if let raw = definition.rawJSONSchema { return raw }
+    let additional: AdditionalProperties =
+      forceClosedArgs && definition.additionalParameters == .allowed
+      ? .disallowed
+      : definition.additionalParameters
+    return emitObjectSchema(
+      properties: definition.parameters,
+      additionalProperties: additional,
+      atLeastOneOf: definition.atLeastOneOf,
+      useUnevaluatedForClosed: context.version.isAtLeastV10,
+      description: nil,
+      defaultValue: nil,
+      context: context,
+      referencedDefs: &referencedDefs
+    )
+  }
+
+  private static func buildSurfacePropertiesSchema(
+    _ definition: SurfacePropertiesDefinition,
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    if let raw = definition.rawJSONSchema { return raw }
+    return emitObjectSchema(
+      properties: definition.properties,
+      additionalProperties: definition.additionalProperties,
+      atLeastOneOf: [],
+      useUnevaluatedForClosed: false,
+      description: definition.description,
+      defaultValue: nil,
+      context: context,
+      referencedDefs: &referencedDefs
+    )
+  }
+
+  private static func emitObjectSchema(
+    properties: [ParameterDefinition],
+    additionalProperties: AdditionalProperties,
+    atLeastOneOf: [[String]],
+    useUnevaluatedForClosed: Bool,
+    description: String?,
+    defaultValue: [String: JSONValue]?,
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    var obj: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
+    if let description { obj["description"] = .string(description) }
+    if !properties.isEmpty {
+      var propsDict: OrderedDictionary<String, JSONValue> = [:]
+      var required: [JSONValue] = []
+      for param in properties {
+        propsDict[param.name] = parameterToJSONSchema(
+          param,
+          context: context,
+          referencedDefs: &referencedDefs
+        )
+        if param.required { required.append(.string(param.name)) }
+      }
+      obj["properties"] = .object(propsDict)
+      if !required.isEmpty { obj["required"] = .array(required) }
+    }
+    applyAtLeastOneOf(atLeastOneOf, to: &obj)
+    switch additionalProperties {
+    case .disallowed:
+      obj[useUnevaluatedForClosed ? "unevaluatedProperties" : "additionalProperties"] = .boolean(
+        false)
+    case .allowed:
+      obj["additionalProperties"] = .boolean(true)
+    case .typed(let valueType):
+      obj["additionalProperties"] = typeToJSONSchema(
+        valueType,
+        context: context,
+        referencedDefs: &referencedDefs
+      )
+    }
+    if let defaultValue {
+      var ordered: OrderedDictionary<String, JSONValue> = [:]
+      for key in defaultValue.keys.sorted() { ordered[key] = defaultValue[key] }
+      obj["default"] = .object(ordered)
     }
     return .object(obj)
   }
 
+  private static func parameterToJSONSchema(
+    _ param: ParameterDefinition,
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
+  ) -> JSONValue {
+    var effectiveType = param.type
+    if effectiveType.description == nil { effectiveType.description = param.description }
+    if param.deprecated { effectiveType.deprecated = true }
+    if effectiveType.deprecatedReason == nil {
+      effectiveType.deprecatedReason = param.deprecatedReason
+    }
+    return typeToJSONSchema(effectiveType, context: context, referencedDefs: &referencedDefs)
+  }
+
   private static func typeToJSONSchema(
     _ type: TypeDefinition,
-    version: A2UIProtocolVersion,
-    localTypes: [String: TypeDefinition],
-    useAbsoluteCommonURIs: Bool,
-    inlineLocalTypes: Bool,
-    visitedRefs: Set<String> = []
+    context: EncodeContext,
+    referencedDefs: inout Set<String>
   ) -> JSONValue {
-    switch type {
-    case .string(
-      let dynamic, let formats, let pattern, let minLength, let maxLength,
-      let defaultValue, let description, let deprecated, _):
+    switch type.kind {
+    case .string(let dynamic, let formats, let pattern, let minL, let maxL, let defVal):
       return emitStringJSONSchema(
         dynamic: dynamic,
         formats: formats,
         pattern: pattern,
-        minLength: minLength,
-        maxLength: maxLength,
-        defaultValue: defaultValue,
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        minLength: minL,
+        maxLength: maxL,
+        defaultValue: defVal,
+        meta: type,
+        context: context
       )
 
-    case .number(
-      let dynamic, let min, let max, let defaultValue, let description, let deprecated,
-      _):
-      if dynamic && min == nil && max == nil {
+    case .number(let dynamic, let minV, let maxV, let defVal):
+      if dynamic && minV == nil && maxV == nil {
         return makeRefObject(
-          commonRef("DynamicNumber", version: version, absolute: useAbsoluteCommonURIs),
-          defaultValue: defaultValue.map(encodeNumber),
-          description: description,
-          deprecated: deprecated
+          commonRef("DynamicNumber", context: context),
+          defaultValue: defVal.map(CatalogDocumentCodec.encodeNumber),
+          meta: type
         )
       }
-      var literal: OrderedDictionary<String, JSONValue> = ["type": .string("number")]
-      if let min { literal["minimum"] = encodeNumber(min) }
-      if let max { literal["maximum"] = encodeNumber(max) }
+      var lit: OrderedDictionary<String, JSONValue> = ["type": .string("number")]
+      if let minV { lit["minimum"] = CatalogDocumentCodec.encodeNumber(minV) }
+      if let maxV { lit["maximum"] = CatalogDocumentCodec.encodeNumber(maxV) }
       return wrapDynamicIfNeeded(
-        literal: .object(literal),
+        literal: .object(lit),
         dynamic: dynamic,
-        expectedV09ReturnType: "number",
-        defaultValue: defaultValue.map(encodeNumber),
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        defaultValue: defVal.map(CatalogDocumentCodec.encodeNumber),
+        meta: type,
+        context: context
       )
 
-    case .integer(
-      let dynamic, let min, let max, let defaultValue, let description, let deprecated,
-      _):
-      var literal: OrderedDictionary<String, JSONValue> = ["type": .string("integer")]
-      if let min { literal["minimum"] = .integer(min) }
-      if let max { literal["maximum"] = .integer(max) }
+    case .integer(let dynamic, let minV, let maxV, let defVal):
+      var lit: OrderedDictionary<String, JSONValue> = ["type": .string("integer")]
+      if let minV { lit["minimum"] = .integer(minV) }
+      if let maxV { lit["maximum"] = .integer(maxV) }
       return wrapDynamicIfNeeded(
-        literal: .object(literal),
+        literal: .object(lit),
         dynamic: dynamic,
-        expectedV09ReturnType: "number",
-        defaultValue: defaultValue.map { .integer($0) },
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        defaultValue: defVal.map(JSONValue.integer),
+        meta: type,
+        context: context
       )
 
-    case .boolean(let dynamic, let defaultValue, let description, let deprecated, _):
+    case .boolean(let dynamic, let defVal):
       if dynamic {
         return makeRefObject(
-          commonRef("DynamicBoolean", version: version, absolute: useAbsoluteCommonURIs),
-          defaultValue: defaultValue.map { .boolean($0) },
-          description: description,
-          deprecated: deprecated
+          commonRef("DynamicBoolean", context: context),
+          defaultValue: defVal.map(JSONValue.boolean),
+          meta: type
         )
       }
       var obj: OrderedDictionary<String, JSONValue> = ["type": .string("boolean")]
-      if let defaultValue { obj["default"] = .boolean(defaultValue) }
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+      appendSchemaMetadata(&obj, defaultValue: defVal.map(JSONValue.boolean), meta: type)
       return .object(obj)
 
-    case .enum(
-      let values, let valueType, let dynamic, let defaultValue, let description,
-      let deprecated, _):
-      let literal: OrderedDictionary<String, JSONValue> = [
+    case .enum(let values, let valueType, let dynamic, let defVal):
+      let lit: JSONValue = .object([
         "type": .string(valueType.rawValue),
         "enum": .array(values),
-      ]
+      ])
       return wrapDynamicIfNeeded(
-        literal: .object(literal),
+        literal: lit,
         dynamic: dynamic,
-        expectedV09ReturnType: valueType.rawValue,
-        defaultValue: defaultValue,
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        defaultValue: defVal,
+        meta: type,
+        context: context
       )
 
-    case .const(let value, let description, let deprecated, _):
+    case .const(let value):
       var obj: OrderedDictionary<String, JSONValue> = ["const": value]
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+      appendSchemaMetadata(&obj, defaultValue: nil, meta: type)
       return .object(obj)
 
-    case .any(let dynamic, let nullable, let defaultValue, let description, let deprecated, _):
+    case .any(let dynamic, let nullable, let defVal):
       if dynamic && !nullable {
         return makeRefObject(
-          commonRef("DynamicValue", version: version, absolute: useAbsoluteCommonURIs),
-          defaultValue: defaultValue,
-          description: description,
-          deprecated: deprecated
+          commonRef("DynamicValue", context: context),
+          defaultValue: defVal,
+          meta: type
         )
       }
       var obj: OrderedDictionary<String, JSONValue> = [:]
-      if let defaultValue { obj["default"] = defaultValue }
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+      if !dynamic && !nullable {
+        obj["not"] = .object(["type": .string("null")])
+      }
+      appendSchemaMetadata(&obj, defaultValue: defVal, meta: type)
       return .object(obj)
 
-    case .object(
-      let dynamic, let properties, let additional, let atLeastOneOf, let defaultValue,
-      let description, let deprecated, _):
-      var literal: OrderedDictionary<String, JSONValue> = ["type": .string("object")]
-      if !properties.isEmpty {
-        var propsObj: OrderedDictionary<String, JSONValue> = [:]
-        var req: [JSONValue] = []
-        for prop in properties {
-          propsObj[prop.name] = parameterToJSONSchema(
-            prop,
-            version: version,
-            localTypes: localTypes,
-            useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-            inlineLocalTypes: inlineLocalTypes
-          )
-          if prop.required { req.append(.string(prop.name)) }
-        }
-        literal["properties"] = .object(propsObj)
-        if !req.isEmpty { literal["required"] = .array(req) }
-      }
-      if !atLeastOneOf.isEmpty {
-        literal["anyOf"] = encodeAtLeastOneOfJSONSchema(atLeastOneOf)
-      }
-      switch additional {
-      case .disallowed:
-        literal["additionalProperties"] = .boolean(false)
-      case .allowed:
-        literal["additionalProperties"] = .boolean(true)
-      case .typed(let extra):
-        literal["additionalProperties"] = typeToJSONSchema(
-          extra,
-          version: version,
-          localTypes: localTypes,
-          useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-          inlineLocalTypes: inlineLocalTypes,
-          visitedRefs: visitedRefs
-        )
-      }
-      let encodedDefault: JSONValue? = defaultValue.map { dict in
-        var ordered: OrderedDictionary<String, JSONValue> = [:]
-        for key in dict.keys.sorted() { ordered[key] = dict[key] }
-        return .object(ordered)
-      }
+    case .object(let dynamic, let props, let additional, let atLeastOneOf, let defVal):
+      let literal = emitObjectSchema(
+        properties: props,
+        additionalProperties: additional,
+        atLeastOneOf: atLeastOneOf,
+        useUnevaluatedForClosed: false,
+        description: nil,
+        defaultValue: nil,
+        context: context,
+        referencedDefs: &referencedDefs
+      )
       return wrapDynamicIfNeeded(
-        literal: .object(literal),
+        literal: literal,
         dynamic: dynamic,
-        expectedV09ReturnType: "object",
-        defaultValue: encodedDefault,
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        defaultValue: defVal.map { d in
+          var ordered: OrderedDictionary<String, JSONValue> = [:]
+          for k in d.keys.sorted() { ordered[k] = d[k] }
+          return .object(ordered)
+        },
+        meta: type,
+        context: context
       )
 
-    case .array(
-      let dynamic, let items, let minItems, let maxItems, let uniqueItems,
-      let defaultValue, let description, let deprecated, _):
-      if dynamic, case .string(false, nil, nil, nil, nil, nil, _, _, _) = items,
-        minItems == nil, maxItems == nil, !uniqueItems
+    case .array(let dynamic, let items, let minI, let maxI, let unique, let defVal):
+      if dynamic, let items, case .string(false, nil, nil, nil, nil, nil) = items.kind,
+        minI == nil, maxI == nil, !unique
       {
         return makeRefObject(
-          commonRef("DynamicStringList", version: version, absolute: useAbsoluteCommonURIs),
-          defaultValue: defaultValue.map { .array($0) },
-          description: description,
-          deprecated: deprecated
+          commonRef("DynamicStringList", context: context),
+          defaultValue: defVal.map(JSONValue.array),
+          meta: type
         )
       }
-      var literal: OrderedDictionary<String, JSONValue> = ["type": .string("array")]
+      var lit: OrderedDictionary<String, JSONValue> = ["type": .string("array")]
       if let items {
-        literal["items"] = typeToJSONSchema(
-          items,
-          version: version,
-          localTypes: localTypes,
-          useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-          inlineLocalTypes: inlineLocalTypes,
-          visitedRefs: visitedRefs
-        )
+        lit["items"] = typeToJSONSchema(items, context: context, referencedDefs: &referencedDefs)
       }
-      if let minItems { literal["minItems"] = .integer(minItems) }
-      if let maxItems { literal["maxItems"] = .integer(maxItems) }
-      if uniqueItems { literal["uniqueItems"] = .boolean(true) }
+      if let minI { lit["minItems"] = .integer(minI) }
+      if let maxI { lit["maxItems"] = .integer(maxI) }
+      if unique { lit["uniqueItems"] = .boolean(true) }
       return wrapDynamicIfNeeded(
-        literal: .object(literal),
+        literal: .object(lit),
         dynamic: dynamic,
-        expectedV09ReturnType: "array",
-        defaultValue: defaultValue.map { .array($0) },
-        description: description,
-        deprecated: deprecated,
-        version: version,
-        absolute: useAbsoluteCommonURIs
+        defaultValue: defVal.map(JSONValue.array),
+        meta: type,
+        context: context
       )
 
-    case .union(
-      let variants, let exclusive, let dynamic, let defaultValue, let description,
-      let deprecated, _):
+    case .union(let variants, let exclusive, let dynamic, let defVal):
       var branches = variants.map {
-        typeToJSONSchema(
-          $0,
-          version: version,
-          localTypes: localTypes,
-          useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-          inlineLocalTypes: inlineLocalTypes,
-          visitedRefs: visitedRefs
-        )
+        typeToJSONSchema($0, context: context, referencedDefs: &referencedDefs)
       }
       if dynamic {
-        branches.append(
-          .object([
-            "$ref": .string(
-              commonRef("DataBinding", version: version, absolute: useAbsoluteCommonURIs))
-          ])
-        )
-        branches.append(
-          .object([
-            "$ref": .string(
-              commonRef("FunctionCall", version: version, absolute: useAbsoluteCommonURIs))
-          ])
-        )
+        branches.append(.object(["$ref": .string(commonRef("DataBinding", context: context))]))
+        branches.append(.object(["$ref": .string(commonRef("FunctionCall", context: context))]))
       }
       var obj: OrderedDictionary<String, JSONValue> = [
         exclusive ? "oneOf" : "anyOf": .array(branches)
       ]
-      if let defaultValue { obj["default"] = defaultValue }
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+      appendSchemaMetadata(&obj, defaultValue: defVal, meta: type)
       return .object(obj)
 
-    case .dataBinding(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("DataBinding", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .functionCall(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("FunctionCall", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .ref(let refName, let defaultValue, let description, let deprecated, _):
-      if inlineLocalTypes, !visitedRefs.contains(refName), let target = localTypes[refName] {
-        var nextVisited = visitedRefs
-        nextVisited.insert(refName)
-        let inlined = typeToJSONSchema(
-          target,
-          version: version,
-          localTypes: localTypes,
-          useAbsoluteCommonURIs: useAbsoluteCommonURIs,
-          inlineLocalTypes: true,
-          visitedRefs: nextVisited
-        )
-        guard var obj = inlined.objectValue else { return inlined }
-        if let defaultValue { obj["default"] = defaultValue }
-        if let description { obj["description"] = .string(description) }
-        if deprecated { obj["deprecated"] = .boolean(true) }
-        return .object(obj)
+    case .ref(let refName, let defVal):
+      if context.inlineLocalTypes, let target = context.localTypes[refName] {
+        if context.visitedRefs.contains(refName) {
+          referencedDefs.insert(refName)
+          return makeRefObject("#/$defs/\(refName)", defaultValue: defVal, meta: type)
+        }
+        var nextCtx = context
+        nextCtx.visitedRefs.insert(refName)
+        var inlined = typeToJSONSchema(target, context: nextCtx, referencedDefs: &referencedDefs)
+        if var dict = inlined.objectValue {
+          appendSchemaMetadata(&dict, defaultValue: defVal, meta: type)
+          inlined = .object(dict)
+        }
+        return inlined
       }
-      return makeRefObject(
-        "#/$defs/\(refName)",
-        defaultValue: defaultValue,
-        description: description,
-        deprecated: deprecated
-      )
+      return makeRefObject("#/$defs/\(refName)", defaultValue: defVal, meta: type)
 
-    case .child(let description, let deprecated, _):
-      let defName = version.isAtLeastV10 ? "Child" : "ComponentId"
+    case .dataBinding, .functionCall, .child, .childList, .action, .checkRule, .accessibility:
       return makeRefObject(
-        commonRef(defName, version: version, absolute: useAbsoluteCommonURIs),
+        commonRef(commonTypeName(for: type.kind, version: context.version), context: context),
         defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .childList(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("ChildList", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .action(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("Action", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .checkRule(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("CheckRule", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
-      )
-
-    case .accessibility(let description, let deprecated, _):
-      return makeRefObject(
-        commonRef("AccessibilityAttributes", version: version, absolute: useAbsoluteCommonURIs),
-        defaultValue: nil,
-        description: description,
-        deprecated: deprecated
+        meta: type
       )
 
     case .rawJSONSchema(let raw):
@@ -2090,139 +1890,183 @@ public enum CatalogJSONSchemaCodec {
     minLength: Int?,
     maxLength: Int?,
     defaultValue: String?,
-    description: String?,
-    deprecated: Bool,
-    version: A2UIProtocolVersion,
-    absolute: Bool
+    meta: TypeDefinition,
+    context: EncodeContext
   ) -> JSONValue {
-    let hasConstraints =
-      (formats != nil && !(formats?.isEmpty ?? true))
-      || pattern != nil
-      || minLength != nil
-      || maxLength != nil
-    if dynamic && !hasConstraints {
+    let hasFormats = !(formats ?? []).isEmpty
+    let hasConstraints = pattern != nil || minLength != nil || maxLength != nil
+    if dynamic && !hasFormats && !hasConstraints {
       return makeRefObject(
-        commonRef("DynamicString", version: version, absolute: absolute),
-        defaultValue: defaultValue.map { .string($0) },
-        description: description,
-        deprecated: deprecated
+        commonRef("DynamicString", context: context),
+        defaultValue: defaultValue.map(JSONValue.string),
+        meta: meta
       )
     }
-    if dynamic, let formats, formats.count > 1, pattern == nil, minLength == nil, maxLength == nil {
-      let formatBranches: [JSONValue] = formats.map { .object(["format": .string($0)]) }
+    if dynamic && hasFormats && !hasConstraints, let formats, formats.count > 1 {
+      let thenSchema: JSONValue = .object([
+        "oneOf": .array(formats.map { .object(["format": .string($0)]) })
+      ])
       var obj: OrderedDictionary<String, JSONValue> = [
         "allOf": .array([
-          .object([
-            "$ref": .string(commonRef("DynamicString", version: version, absolute: absolute))
-          ]),
+          .object(["$ref": .string(commonRef("DynamicString", context: context))]),
           .object([
             "if": .object(["type": .string("string")]),
-            "then": .object(["oneOf": .array(formatBranches)]),
+            "then": thenSchema,
           ]),
         ])
       ]
-      if let defaultValue { obj["default"] = .string(defaultValue) }
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+      appendSchemaMetadata(&obj, defaultValue: defaultValue.map(JSONValue.string), meta: meta)
       return .object(obj)
     }
-    var literal: OrderedDictionary<String, JSONValue> = ["type": .string("string")]
+    var lit: OrderedDictionary<String, JSONValue> = ["type": .string("string")]
     if let formats, formats.count == 1 {
-      literal["format"] = .string(formats[0])
+      lit["format"] = .string(formats[0])
     } else if let formats, formats.count > 1 {
-      literal["oneOf"] = .array(formats.map { .object(["format": .string($0)]) })
+      lit["oneOf"] = .array(formats.map { .object(["format": .string($0)]) })
     }
-    if let pattern { literal["pattern"] = .string(pattern) }
-    if let minLength { literal["minLength"] = .integer(minLength) }
-    if let maxLength { literal["maxLength"] = .integer(maxLength) }
+    if let pattern { lit["pattern"] = .string(pattern) }
+    if let minLength { lit["minLength"] = .integer(minLength) }
+    if let maxLength { lit["maxLength"] = .integer(maxLength) }
     return wrapDynamicIfNeeded(
-      literal: .object(literal),
+      literal: .object(lit),
       dynamic: dynamic,
-      expectedV09ReturnType: "string",
-      defaultValue: defaultValue.map { .string($0) },
-      description: description,
-      deprecated: deprecated,
-      version: version,
-      absolute: absolute
+      defaultValue: defaultValue.map(JSONValue.string),
+      meta: meta,
+      context: context
     )
   }
 
   private static func wrapDynamicIfNeeded(
     literal: JSONValue,
     dynamic: Bool,
-    expectedV09ReturnType: String,
     defaultValue: JSONValue?,
-    description: String?,
-    deprecated: Bool,
-    version: A2UIProtocolVersion,
-    absolute: Bool
+    meta: TypeDefinition,
+    context: EncodeContext
   ) -> JSONValue {
-    guard dynamic else {
-      guard var obj = literal.objectValue else { return literal }
-      if let defaultValue { obj["default"] = defaultValue }
-      appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+    if !dynamic {
+      var obj = literal.objectValue ?? [:]
+      appendSchemaMetadata(&obj, defaultValue: defaultValue, meta: meta)
       return .object(obj)
-    }
-    let callBranch: JSONValue
-    if version.isAtLeastV10 {
-      callBranch = .object([
-        "$ref": .string(commonRef("FunctionCall", version: version, absolute: absolute))
-      ])
-    } else {
-      callBranch = .object([
-        "allOf": .array([
-          .object(["$ref": .string(commonRef("FunctionCall", version: version, absolute: absolute))]
-          ),
-          .object([
-            "properties": .object(["returnType": .object(["const": .string(expectedV09ReturnType)])]
-            )
-          ]),
-        ])
-      ])
     }
     var obj: OrderedDictionary<String, JSONValue> = [
       "oneOf": .array([
         literal,
-        .object(["$ref": .string(commonRef("DataBinding", version: version, absolute: absolute))]),
-        callBranch,
+        .object(["$ref": .string(commonRef("DataBinding", context: context))]),
+        .object(["$ref": .string(commonRef("FunctionCall", context: context))]),
       ])
     ]
-    if let defaultValue { obj["default"] = defaultValue }
-    appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+    appendSchemaMetadata(&obj, defaultValue: defaultValue, meta: meta)
     return .object(obj)
+  }
+
+  private static func attachingDefsIfNeeded(
+    _ schema: JSONValue,
+    names: Set<String>,
+    version: A2UIProtocolVersion,
+    localTypes: [String: TypeDefinition],
+    useAbsoluteCommonURIs: Bool = true
+  ) -> JSONValue {
+    guard !names.isEmpty, var rootObj = schema.objectValue else { return schema }
+    var reachable: Set<String> = []
+    var queue = Array(names)
+    while let next = queue.popLast() {
+      guard reachable.insert(next).inserted, let target = localTypes[next] else { continue }
+      collectLocalRefNames(in: target, into: &queue)
+    }
+    var subset: [String: TypeDefinition] = [:]
+    for name in reachable {
+      if let target = localTypes[name] { subset[name] = target }
+    }
+    let defs = typeDefsJSONSchema(
+      subset,
+      version: version,
+      useAbsoluteCommonURIs: useAbsoluteCommonURIs
+    )
+    if !defs.isEmpty { rootObj["$defs"] = .object(defs) }
+    return .object(rootObj)
+  }
+
+  private static func collectLocalRefNames(in type: TypeDefinition, into out: inout [String]) {
+    switch type.kind {
+    case .ref(let name, _):
+      out.append(name)
+    case .object(_, let props, let additional, _, _):
+      for prop in props { collectLocalRefNames(in: prop.type, into: &out) }
+      if let extra = additional.typedSchema { collectLocalRefNames(in: extra, into: &out) }
+    case .array(_, let items, _, _, _, _):
+      if let items { collectLocalRefNames(in: items, into: &out) }
+    case .union(let variants, _, _, _):
+      for variant in variants { collectLocalRefNames(in: variant, into: &out) }
+    default:
+      break
+    }
+  }
+
+  /// Applies one or more `atLeastOneOf` groups cleanly (`anyOf` for 1 group, `allOf` of `anyOf`
+  /// for multiple groups so `(a OR b) AND (c OR d)` preserves conjunctive semantics).
+  private static func applyAtLeastOneOf(
+    _ groups: [[String]],
+    to obj: inout OrderedDictionary<String, JSONValue>
+  ) {
+    guard !groups.isEmpty else { return }
+    if groups.count == 1, obj["anyOf"] == nil {
+      obj["anyOf"] = .array(groups[0].map { .object(["required": .array([.string($0)])]) })
+      return
+    }
+    let allOfEntries: [JSONValue] = groups.map { group in
+      .object(["anyOf": .array(group.map { .object(["required": .array([.string($0)])]) })])
+    }
+    var existing = obj["allOf"]?.arrayValue ?? []
+    existing.append(contentsOf: allOfEntries)
+    obj["allOf"] = .array(existing)
   }
 
   private static func makeRefObject(
     _ ref: String,
     defaultValue: JSONValue?,
-    description: String?,
-    deprecated: Bool
+    meta: TypeDefinition
   ) -> JSONValue {
     var obj: OrderedDictionary<String, JSONValue> = ["$ref": .string(ref)]
-    if let defaultValue { obj["default"] = defaultValue }
-    appendSchemaMetadata(&obj, description: description, deprecated: deprecated)
+    appendSchemaMetadata(&obj, defaultValue: defaultValue, meta: meta)
     return .object(obj)
   }
 
   private static func appendSchemaMetadata(
     _ obj: inout OrderedDictionary<String, JSONValue>,
-    description: String?,
-    deprecated: Bool
+    defaultValue: JSONValue?,
+    meta: TypeDefinition
   ) {
-    if let description { obj["description"] = .string(description) }
-    if deprecated { obj["deprecated"] = .boolean(true) }
+    if let desc = meta.description { obj["description"] = .string(desc) }
+    if let defaultValue { obj["default"] = defaultValue }
+    if meta.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = meta.deprecatedReason { obj["x-deprecated-reason"] = .string(reason) }
   }
 
-  private static func commonRef(
-    _ defName: String,
-    version: A2UIProtocolVersion,
-    absolute: Bool
+  private static func commonTypeName(
+    for kind: TypeDefinition.Kind,
+    version: A2UIProtocolVersion
   ) -> String {
-    if absolute {
-      return version.isAtLeastV10
-        ? A2UICommonSchema.v10URI(for: defName)
-        : A2UICommonSchema.uri(for: defName)
+    switch kind {
+    case .dataBinding: return "DataBinding"
+    case .functionCall: return "FunctionCall"
+    case .child: return version.isAtLeastV10 ? "Child" : "ComponentId"
+    case .childList: return "ChildList"
+    case .action: return "Action"
+    case .checkRule: return "CheckRule"
+    case .accessibility: return "AccessibilityAttributes"
+    default: return "DynamicValue"
     }
-    return "common_types.json#/$defs/\(defName)"
+  }
+
+  private static func commonRef(_ name: String, context: EncodeContext) -> String {
+    if context.useAbsoluteCommonURIs {
+      return context.version.isAtLeastV10
+        ? A2UICommonSchema.v10URI(for: name)
+        : A2UICommonSchema.uri(for: name)
+    }
+    return context.version.isAtLeastV10
+      ? "common_types.json#/$defs/\(name)"
+      : "https://a2ui.org/specification/v0_9/common_types.json#/$defs/\(name)"
   }
 
   private static func makeCatalogUnion(
@@ -2233,9 +2077,7 @@ public enum CatalogJSONSchemaCodec {
     guard !names.isEmpty else { return .object(["not": .object([:])]) }
     let refs: [JSONValue] = names.map { name in
       let token =
-        name
-        .replacingOccurrences(of: "~", with: "~0")
-        .replacingOccurrences(of: "/", with: "~1")
+        name.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(of: "/", with: "~1")
       return .object(["$ref": .string("#/\(section)/\(token)")])
     }
     var union: OrderedDictionary<String, JSONValue> = ["oneOf": .array(refs)]
@@ -2245,77 +2087,73 @@ public enum CatalogJSONSchemaCodec {
     return .object(union)
   }
 
-  private static func encodeAtLeastOneOfJSONSchema(_ groups: [[String]]) -> JSONValue {
-    if groups.count == 1 {
-      return .array(groups[0].map { .object(["required": .array([.string($0)])]) })
-    }
-    return .array(
-      groups.map { group in
-        .object([
-          "anyOf": .array(group.map { .object(["required": .array([.string($0)])]) })
-        ])
-      }
-    )
-  }
-
-  // MARK: - Small Utilities
+  // MARK: - Private Validation & Pattern Helpers
 
   private static func inferProtocolVersion(
     from root: OrderedDictionary<String, JSONValue>
   ) -> String {
-    if root["instructions"] != nil { return "1.0" }
-    if let functions = root["functions"]?.objectValue,
-      functions.values.contains(where: { $0["properties"]?["@call"] != nil })
-    {
-      return "1.0"
+    if let id = root["$id"]?.stringValue ?? root["catalogId"]?.stringValue {
+      if id.contains("/v1_0/") { return "1.0" }
+      if id.contains("/v0_9_1/") { return "0.9.1" }
+      if id.contains("/v0_9/") { return "0.9" }
     }
-    return "v0.9"
+    return "0.9"
   }
 
   private static func isAtLeastV10(_ version: String) -> Bool {
     if let parsed = A2UIProtocolVersion(lenientRawValue: version) {
       return parsed.isAtLeastV10
     }
-    let clean = version.hasPrefix("v") ? String(version.dropFirst()) : version
-    return clean.compare("1.0", options: .numeric) != .orderedAscending
+    return CatalogDocumentCodec.normalizeProtocolVersion(version)
+      .compare("1.0", options: .numeric) != .orderedAscending
   }
 
   private static func validateV10Identifiers(
     _ root: OrderedDictionary<String, JSONValue>
   ) throws {
-    if let components = root["components"]?.objectValue {
-      for (name, def) in components {
+    if let comps = root["components"]?.objectValue {
+      for (name, def) in comps {
+        guard name != "Surface" else {
+          throw A2UICatalogError("Invalid UAX #31 component identifier: 'Surface' is reserved")
+        }
         guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
-          throw A2UICatalogError("Invalid UAX #31 component identifier: '\(name)'.")
+          throw A2UICatalogError("Invalid UAX #31 component identifier: '\(name)'")
         }
-        if let rawMeta = def["metadata"] {
-          _ = try validateOptionalMetadata(rawMeta, pathPrefix: "components.\(name).metadata")
+        try validateV10PropertyIdentifiers(in: def, componentName: name)
+      }
+    }
+    if let funcs = root["functions"]?.objectValue {
+      for (name, def) in funcs {
+        guard !name.hasPrefix("@"), UnicodeIdentifierValidator.isValidIdentifier(name) else {
+          throw A2UICatalogError("Invalid UAX #31 function identifier: '\(name)'")
         }
-        if let props = def["properties"]?.objectValue {
-          for propName in props.keys where !UnicodeIdentifierValidator.isValidIdentifier(propName) {
+        let params =
+          def["parameters"]?.objectValue ?? def["properties"]?["args"]?["properties"]?.objectValue
+        if let params {
+          for argName in params.keys where !UnicodeIdentifierValidator.isValidIdentifier(argName) {
             throw A2UICatalogError(
-              "Invalid UAX #31 property identifier '\(propName)' in component '\(name)'."
+              "Invalid UAX #31 argument identifier '\(argName)' in function '\(name)'"
             )
           }
         }
       }
     }
-    if let functions = root["functions"]?.objectValue {
-      for (name, def) in functions {
-        guard !name.hasPrefix("@"), UnicodeIdentifierValidator.isValidIdentifier(name) else {
-          throw A2UICatalogError("Invalid UAX #31 function identifier: '\(name)'.")
-        }
-        let paramDict =
-          def["parameters"]?.objectValue
-          ?? def["properties"]?["args"]?["properties"]?.objectValue
-        if let paramDict {
-          for argName in paramDict.keys where !UnicodeIdentifierValidator.isValidIdentifier(argName)
-          {
-            throw A2UICatalogError(
-              "Invalid UAX #31 argument identifier '\(argName)' in function '\(name)'."
-            )
-          }
-        }
+  }
+
+  private static func validateV10PropertyIdentifiers(
+    in schema: JSONValue,
+    componentName: String
+  ) throws {
+    if let props = schema["properties"]?.objectValue {
+      for propName in props.keys where !UnicodeIdentifierValidator.isValidIdentifier(propName) {
+        throw A2UICatalogError(
+          "Invalid UAX #31 property identifier '\(propName)' in component '\(componentName)'"
+        )
+      }
+    }
+    if let allOf = schema["allOf"]?.arrayValue {
+      for branch in allOf {
+        try validateV10PropertyIdentifiers(in: branch, componentName: componentName)
       }
     }
   }
@@ -2324,22 +2162,18 @@ public enum CatalogJSONSchemaCodec {
     if let obj = node.objectValue {
       if let ref = obj["$ref"]?.stringValue, !isSupportedV10Ref(ref) {
         throw A2UICatalogError(
-          """
-          Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only \
-          reference its own components and functions (#/...) or common_types.json.
-          """
+          "Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only "
+            + "reference its own components and functions (#/...) or common_types.json."
         )
       }
       for (key, value) in obj {
         let escaped =
-          key
-          .replacingOccurrences(of: "~", with: "~0")
-          .replacingOccurrences(of: "/", with: "~1")
+          key.replacingOccurrences(of: "~", with: "~0").replacingOccurrences(of: "/", with: "~1")
         try checkV10ExternalRefs(value, pointer: "\(pointer)/\(escaped)")
       }
     } else if let arr = node.arrayValue {
-      for (index, item) in arr.enumerated() {
-        try checkV10ExternalRefs(item, pointer: "\(pointer)/\(index)")
+      for (idx, item) in arr.enumerated() {
+        try checkV10ExternalRefs(item, pointer: "\(pointer)/\(idx)")
       }
     }
   }
@@ -2347,41 +2181,28 @@ public enum CatalogJSONSchemaCodec {
   private static func isSupportedV10Ref(_ ref: String) -> Bool {
     let document =
       ref.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(
-        String.init
-      ) ?? ""
-    if document.isEmpty || document == "catalog.json" {
-      return true
-    }
+        String.init)
+      ?? ""
+    if document.isEmpty || document == "catalog.json" { return true }
     return document.split(separator: "/", omittingEmptySubsequences: false).last
       == "common_types.json"
   }
 
-  private static func extractUnionAllowedNames(
-    in unionDef: JSONValue?,
-    prefix: String
-  ) -> Set<String>? {
+  private static func extractUnionAllowedNames(in unionDef: JSONValue?, prefix: String) -> Set<
+    String
+  >? {
     guard let unionDef else { return nil }
-    if unionDef["not"]?.objectValue?.isEmpty == true {
+    if let oneOf = unionDef["oneOf"]?.arrayValue {
+      let names = oneOf.compactMap { item -> String? in
+        guard let ref = item["$ref"]?.stringValue, ref.hasPrefix(prefix) else { return nil }
+        return String(ref.dropFirst(prefix.count))
+      }
+      return names.isEmpty ? nil : Set(names)
+    }
+    if let notObj = unionDef["not"]?.objectValue, notObj.isEmpty {
       return []
     }
-    guard let oneOf = unionDef["oneOf"]?.arrayValue else { return nil }
-    let names = oneOf.compactMap { item -> String? in
-      guard let ref = item["$ref"]?.stringValue, ref.hasPrefix(prefix) else { return nil }
-      return String(ref.dropFirst(prefix.count))
-    }
-    return names.isEmpty ? nil : Set(names)
-  }
-
-  private static func validateOptionalMetadata(
-    _ raw: JSONValue?,
-    pathPrefix: String
-  ) throws -> [String: JSONValue]? {
-    guard let raw else { return nil }
-    do {
-      return try MetadataValidator.validate(raw, pathPrefix: pathPrefix)
-    } catch let error as A2UIValidationError {
-      throw A2UICatalogError(error.message, details: error.details)
-    }
+    return nil
   }
 
   private static func extractFunctionArgsSchema(from funcValue: JSONValue) -> JSONValue {
@@ -2397,37 +2218,36 @@ public enum CatalogJSONSchemaCodec {
     return .object(["type": .string("object")])
   }
 
-  private static func parseFunctionReturnShorthand(_ raw: String) -> FunctionReturnDefinition {
-    switch raw {
-    case "string": return .string
-    case "number": return .number
-    case "integer": return .integer
-    case "boolean": return .boolean
-    case "array": return .array
-    case "object": return .object
-    case "validationResult": return .validationResult
-    case "void": return .void
-    default: return .any
-    }
-  }
-
   private static func extractRequiredGroup(from anyOf: [JSONValue]) -> [String]? {
-    guard !anyOf.isEmpty else { return nil }
+    guard anyOf.count >= 2 else { return nil }
     var names: [String] = []
     for branch in anyOf {
       guard let obj = branch.objectValue,
-        obj.count == 1,
-        let req = obj["required"]?.arrayValue,
-        req.count == 1,
+        obj.keys.allSatisfy({ $0 == "required" || metadataOnlyKeys.contains($0) }),
+        let req = obj["required"]?.arrayValue, req.count == 1,
         let name = req[0].stringValue
       else {
         return nil
       }
-      if !names.contains(name) {
-        names.append(name)
-      }
+      names.append(name)
     }
     return names.isEmpty ? nil : names
+  }
+
+  private static func extractFormatOnlyBranches(_ branches: [JSONValue]) -> [String]? {
+    guard !branches.isEmpty else { return nil }
+    var formats: [String] = []
+    for branch in branches {
+      guard let obj = branch.objectValue,
+        let fmt = obj["format"]?.stringValue,
+        obj.keys.allSatisfy({ $0 == "format" || $0 == "type" || metadataOnlyKeys.contains($0) }),
+        obj["type"] == nil || obj["type"]?.stringValue == "string"
+      else {
+        return nil
+      }
+      formats.append(fmt)
+    }
+    return formats
   }
 
   private static func isCheckRuleListSchema(_ schema: JSONValue) -> Bool {
@@ -2436,8 +2256,7 @@ public enum CatalogJSONSchemaCodec {
   }
 
   private static func refSuffix(of schema: JSONValue) -> String? {
-    guard let ref = schema["$ref"]?.stringValue else { return nil }
-    return ref.split(separator: "/").last.map(String.init)
+    schema["$ref"]?.stringValue?.split(separator: "/").last.map(String.init)
   }
 
   private static func isDataBindingBranch(_ branch: JSONValue) -> Bool {
@@ -2445,30 +2264,49 @@ public enum CatalogJSONSchemaCodec {
   }
 
   private static func isFunctionCallBranch(_ branch: JSONValue) -> Bool {
-    if refSuffix(of: branch) == "FunctionCall" {
-      return true
-    }
-    if let allOf = branch["allOf"]?.arrayValue,
-      allOf.contains(where: { refSuffix(of: $0) == "FunctionCall" })
+    if refSuffix(of: branch) == "FunctionCall" { return true }
+    if let ref = branch["$ref"]?.stringValue, ref.hasSuffix("/anyFunction") { return true }
+    if let props = branch["properties"]?.objectValue,
+      props["@call"] != nil || props["call"] != nil
     {
       return true
     }
     return false
   }
 
-  private static func inferEnumValueType(
+  private static func isJSONScalar(_ value: JSONValue) -> Bool {
+    switch value {
+    case .string, .integer, .boolean, .null: return true
+    case .number(let n): return n.isFinite
+    case .array, .object: return false
+    }
+  }
+
+  private static func homogeneousEnumValueType(
     _ values: [JSONValue],
     declaredType: String?
-  ) -> EnumValueType {
-    if let declaredType, let parsed = EnumValueType(rawValue: declaredType) {
-      return parsed
+  ) -> EnumValueType? {
+    let inferred: EnumValueType?
+    if let declaredType {
+      inferred = EnumValueType(rawValue: declaredType)
+    } else if values.first?.stringValue != nil {
+      inferred = .string
+    } else if values.first?.doubleValue != nil {
+      inferred = .number
+    } else if values.first?.boolValue != nil {
+      inferred = .boolean
+    } else {
+      inferred = nil
     }
-    if let first = values.first {
-      if first.stringValue != nil { return .string }
-      if first.boolValue != nil { return .boolean }
-      if first.doubleValue != nil { return .number }
+    guard let vt = inferred else { return nil }
+    let allMatch = values.allSatisfy { val in
+      switch vt {
+      case .string: return val.stringValue != nil
+      case .number: return val.doubleValue.map(\.isFinite) ?? false
+      case .boolean: return val.boolValue != nil
+      }
     }
-    return .string
+    return allMatch ? vt : nil
   }
 
   private static func simplePrimitiveType(named name: String) -> TypeDefinition? {
@@ -2483,22 +2321,14 @@ public enum CatalogJSONSchemaCodec {
     }
   }
 
-  private static func encodeNumber(_ value: Double) -> JSONValue {
-    if let exact = Int(exactly: value) {
-      return .integer(exact)
-    }
-    return .number(value)
-  }
-
   private static func resolveLocalPointer(_ ref: String, in root: JSONValue) -> JSONValue? {
     guard ref == "#" || ref.hasPrefix("#/") else { return nil }
     var current = root
-    let tokens = ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
-    for rawToken in tokens.dropFirst() {
+    for rawToken in ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
+      .dropFirst()
+    {
       let token =
-        rawToken
-        .replacingOccurrences(of: "~1", with: "/")
-        .replacingOccurrences(of: "~0", with: "~")
+        rawToken.replacingOccurrences(of: "~1", with: "/").replacingOccurrences(of: "~0", with: "~")
       if let next = current.objectValue?[token] {
         current = next
       } else if let items = current.arrayValue, let index = Int(token),

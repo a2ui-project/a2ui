@@ -258,8 +258,8 @@ struct CatalogModelTests {
 
   @Test func pureModelAuthoringAndDocumentRoundTrip() throws {
     let catalog = makeCanonicalCatalog()
-    #expect(catalog.components["Label"]?.hasCanonicalDefinition == true)
-    #expect(catalog.functions["inRange"]?.api.hasCanonicalDefinition == true)
+    #expect(catalog.components["Label"]?.definition.isCanonical == true)
+    #expect(catalog.functions["inRange"]?.api.definition.isCanonical == true)
 
     let document = try catalog.toDocument()
     #expect(CatalogDocumentCodec.isCatalogDocument(document))
@@ -796,5 +796,436 @@ struct CatalogModelTests {
     )
     #expect(response.value == .string("hello!"))
     #expect(response.error == nil)
+  }
+
+  // MARK: - Recursive Types, Composition, and Format Edge Cases
+
+  @Test func structuralCyclicRefsValidateAtArbitraryDepthAndRoundTrip() throws {
+    let catalog = AnyCatalog(
+      model: CatalogModel(
+        catalogID: "https://example.com/catalogs/recursive",
+        protocolVersion: "1.0",
+        types: [
+          "TreeNode": .object(
+            properties: [
+              .string("label", required: true),
+              .ref("child", to: "TreeNode"),
+              .ref("sibling", to: "TreeNode"),
+            ],
+            additionalProperties: .disallowed
+          ),
+          "NestedList": .array(
+            items: .union(variants: [.string(), .ref("NestedList")])
+          ),
+          "Expr": .union(
+            variants: [.ref("Expr"), .string()],
+            exclusive: true
+          ),
+        ],
+        components: [
+          ComponentDefinition(
+            name: "Tree",
+            parameters: [
+              .ref("root", to: "TreeNode", required: true),
+              .ref("matrix", to: "NestedList"),
+              .ref("expr", to: "Expr"),
+            ]
+          )
+        ]
+      )
+    )
+
+    // Catalog Document round-trip preserves structural recursion.
+    let doc = try catalog.toDocument()
+    let fromDoc = try Catalog.fromDocument(doc)
+    #expect(fromDoc.model == catalog.model)
+
+    // JSON Schema round-trip preserves self-recursive `$defs`.
+    let jsonSchema = catalog.toJSON(protocolVersion: .v10)
+    let fromSchema = try Catalog.fromJSON(jsonSchema)
+    #expect(fromSchema.types["TreeNode"] == catalog.types["TreeNode"])
+    #expect(fromSchema.types["NestedList"] == catalog.types["NestedList"])
+    #expect(fromSchema.types["Expr"] == catalog.types["Expr"])
+
+    // Standalone Schema compilation attaches `$defs` instead of falling back to emptyObjectSchema.
+    let compiled = try CatalogJSONSchemaCodec.compileComponentSchema(
+      try #require(catalog.components["Tree"]?.definition),
+      protocolVersion: .v10,
+      localTypes: catalog.types
+    )
+    #expect(compiled.jsonValue["$defs"]?["TreeNode"] != nil)
+
+    // PayloadValidator validates nested recursive levels and never false-matches cyclic union refs.
+    let validator = PayloadValidator(catalog: fromDoc, config: .strict)
+    try validator.validateComponent([
+      "id": "t1",
+      "component": "Tree",
+      "root": [
+        "label": "root",
+        "child": ["label": "level1", "child": ["label": "level2"]],
+        "sibling": ["label": "sib"],
+      ],
+      "matrix": ["a", ["b", ["c"]]],
+      "expr": "hello",
+    ])
+
+    // Depth >= 2 invalid child value MUST be rejected (visitedRefs reset on sub-value descent).
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": "t2",
+        "component": "Tree",
+        "root": ["label": "root", "child": 12345],
+      ])
+    }
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": "t3",
+        "component": "Tree",
+        "root": ["label": "root"],
+        "matrix": ["ok", [123]],
+      ])
+    }
+    // Exclusive union `[Ref(Expr), String]` MUST reject non-string `12345` (fail-closed ref cycle).
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": "t4",
+        "component": "Tree",
+        "root": ["label": "root"],
+        "expr": 12345,
+      ])
+    }
+
+    // GraphTopologyValidator extracts nested child references across recursive objects/arrays.
+    let childTreeDef = ComponentDefinition(
+      name: "GroupTree",
+      parameters: [
+        .object(
+          "node",
+          properties: [
+            .child("target"),
+            .array("items", items: .object(properties: [.child("itemTarget")])),
+          ]
+        )
+      ]
+    )
+    let refs = GraphTopologyValidator.extractReferences(
+      from: [
+        "node": [
+          "target": "c1",
+          "items": [["itemTarget": "c2"], ["itemTarget": "c3"]],
+        ]
+      ],
+      definition: childTreeDef
+    )
+    #expect(refs.map(\.id) == ["c1", "c2", "c3"])
+  }
+
+  @Test func multipleAtLeastOneOfGroupsUseConjunctiveAllOfAndValidateBothGroups() throws {
+    let comp = ComponentDefinition(
+      name: "Filter",
+      parameters: [.string("a"), .string("b"), .string("c"), .string("d")],
+      atLeastOneOf: [["a", "b"], ["c", "d"]]
+    )
+    let catalog = AnyCatalog(
+      model: CatalogModel(
+        catalogID: "https://example.com/catalogs/multi-group",
+        protocolVersion: "1.0",
+        components: [comp]
+      )
+    )
+    let json = catalog.toJSON(protocolVersion: .v10)
+    let allOf = try #require(json["components"]?["Filter"]?["allOf"]?.arrayValue)
+    #expect(allOf.count == 2)
+
+    let reparsed = try Catalog.fromJSON(json)
+    #expect(reparsed.components["Filter"]?.definition.atLeastOneOf == [["a", "b"], ["c", "d"]])
+
+    let validator = PayloadValidator(catalog: reparsed, config: .strict)
+    try validator.validateComponent(["id": "f1", "component": "Filter", "a": "1", "c": "2"])
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(["id": "f2", "component": "Filter", "a": "1"])
+    }
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(["id": "f3", "component": "Filter", "c": "2"])
+    }
+  }
+
+  @Test func openComponentStillEnforcesClosedNestedObjectsAndBuiltins() throws {
+    let rawV09Catalog: JSONValue = [
+      "catalogId": "https://example.com/catalogs/v09-open",
+      "components": [
+        "OpenWidget": [
+          "type": "object",
+          "properties": [
+            "component": ["const": "OpenWidget"],
+            "nested": [
+              "type": "object",
+              "properties": ["allowed": ["type": "string"]],
+              "additionalProperties": false,
+            ],
+            "action": [
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action"
+            ],
+          ],
+          "required": ["component"],
+          "additionalProperties": true,
+        ]
+      ],
+    ]
+    let catalog = try Catalog.fromJSON(rawV09Catalog, protocolVersion: "v0.9")
+    let validator = PayloadValidator(
+      catalog: catalog, config: ValidationConfig(protocolVersion: .v09))
+
+    // Extra key at component root is permitted by component `additionalProperties: true`.
+    try validator.validateComponent([
+      "id": "w1",
+      "component": "OpenWidget",
+      "extraRootKey": "ok",
+      "nested": ["allowed": "yes"],
+    ])
+    // Extra key inside closed nested object MUST still be rejected.
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": "w2",
+        "component": "OpenWidget",
+        "nested": ["allowed": "yes", "forbidden": true],
+      ])
+    }
+    // Extra key inside Action MUST still be rejected.
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": "w3",
+        "component": "OpenWidget",
+        "action": ["event": ["name": "tap", "bogus": 1]],
+      ])
+    }
+  }
+
+  @Test func nonDynamicMultiFormatStringAndDynamicUnionRoundTripLosslessly() throws {
+    let catalog = AnyCatalog(
+      model: CatalogModel(
+        catalogID: "https://example.com/catalogs/formats-and-unions",
+        protocolVersion: "1.0",
+        components: [
+          ComponentDefinition(
+            name: "Schedule",
+            parameters: [
+              .string("literalDate", dynamic: false, formats: ["date", "date-time"]),
+              .union("value", variants: [.string(), .number()], exclusive: true, dynamic: true),
+              .any("strictAny", dynamic: false, nullable: false),
+            ]
+          )
+        ],
+        functions: [
+          FunctionDefinition(
+            name: "getPayload",
+            returnType: FunctionReturnDefinition(
+              kind: .data(.object(additionalProperties: .allowed)),
+              description: "Returns arbitrary JSON object."
+            )
+          )
+        ]
+      )
+    )
+    let json = catalog.toJSON(protocolVersion: .v10)
+    let fromJSON = try Catalog.fromJSON(json)
+    #expect(fromJSON.components["Schedule"]?.definition.isCanonical == true)
+    #expect(
+      fromJSON.components["Schedule"]?.definition == catalog.components["Schedule"]?.definition)
+
+    let doc = try fromJSON.toDocument()
+    let fromDoc = try Catalog.fromDocument(doc)
+    #expect(
+      fromDoc.components["Schedule"]?.definition == catalog.components["Schedule"]?.definition)
+
+    // FunctionReturnDefinition.object uses `.allowed` and preserves `.data` description.
+    let fnDoc = try catalog.toDocument()
+    let encodedRet = fnDoc["functions"]?.arrayValue?.first?["returnType"]
+    #expect(encodedRet?["type"] == .string("object"))
+    #expect(encodedRet?["additionalProperties"] == .boolean(true))
+    #expect(encodedRet?["description"] == .string("Returns arbitrary JSON object."))
+  }
+
+  @Test func documentCodecValidatesSemanticConstraintsOnBothDecodeAndEncode() throws {
+    // Enum default not in values (decode).
+    let badEnumDefault: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/bad-enum",
+      "components": [
+        [
+          "name": "Box",
+          "parameters": [
+            ["name": "size", "type": "enum", "values": ["sm", "lg"], "default": "xl"]
+          ],
+        ]
+      ],
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(badEnumDefault) }
+
+    // Inverted bounds (min > max, minLength > maxLength, minItems > maxItems).
+    let invertedBounds: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/bad-bounds",
+      "components": [
+        [
+          "name": "Box",
+          "parameters": [["name": "count", "type": "integer", "min": 10, "max": 5]],
+        ]
+      ],
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(invertedBounds) }
+
+    // Invalid regex pattern.
+    let badRegex: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/bad-regex",
+      "components": [
+        [
+          "name": "Box",
+          "parameters": [["name": "code", "type": "string", "pattern": "[unclosed"]],
+        ]
+      ],
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(badRegex) }
+
+    // Non-nullable `any` with explicit `default: null`.
+    let badNullDefault: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/bad-null",
+      "components": [
+        [
+          "name": "Box",
+          "parameters": [["name": "data", "type": "any", "nullable": false, "default": nil]],
+        ]
+      ],
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(badNullDefault) }
+
+    // Explicit `null` on optional non-nullable key (`title`).
+    let nullTitle: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/null-title",
+      "title": nil,
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromDocument(nullTitle) }
+
+    // Deep validation runs on `encode(_:)` for in-memory models too.
+    let badInMemoryModel = CatalogModel(
+      catalogID: "https://example.com/bad-encode",
+      components: [
+        ComponentDefinition(
+          name: "Box",
+          parameters: [.number("ratio", min: .nan)]
+        )
+      ]
+    )
+    #expect(throws: A2UICatalogError.self) { _ = try CatalogDocumentCodec.encode(badInMemoryModel) }
+
+    // Catalog.fromJSON validates explicit catalogID / protocolVersion overrides.
+    let validDoc: JSONValue = [
+      "formatVersion": "1.0",
+      "catalogId": "https://example.com/valid",
+      "protocolVersion": "1.0",
+    ]
+    #expect(throws: A2UICatalogError.self) { _ = try Catalog.fromJSON(validDoc, catalogID: "") }
+    #expect(throws: A2UICatalogError.self) {
+      _ = try Catalog.fromJSON(validDoc, protocolVersion: "not-semver")
+    }
+
+    // Mutating FunctionAPI.returnType stays synced in `definition`.
+    var fnAPI = FunctionAPI(definition: FunctionDefinition(name: "fn", returnType: .string))
+    fnAPI.returnType = .boolean
+    #expect(fnAPI.definition.returnType == .boolean)
+  }
+
+  @Test func strictFormatValidationUnicodeCodePointsWholeDoublesAndV09DynamicValue() throws {
+    let catalog = AnyCatalog(
+      model: CatalogModel(
+        catalogID: "https://example.com/catalogs/strict-formats",
+        protocolVersion: "1.0",
+        components: [
+          ComponentDefinition(
+            name: "Form",
+            parameters: [
+              .string("date", format: "date"),
+              .string("time", format: "time"),
+              .string("dateTime", format: "date-time"),
+              .string("email", format: "email"),
+              .string("emoji", minLength: 1, maxLength: 2),
+              .integer("count", min: 0),
+              .number("ratio", min: 0, max: 1),
+              .any("dynVal", dynamic: true, nullable: false),
+            ]
+          )
+        ]
+      )
+    )
+    let v10Validator = PayloadValidator(catalog: catalog, config: .strict)
+
+    // Valid leap years, naive time, UTC leap second, emoji scalar count, whole-number double.
+    try v10Validator.validateComponent([
+      "id": "f1",
+      "component": "Form",
+      "date": "2024-02-29",
+      "time": "14:30:00",
+      "dateTime": "2024-02-29T23:59:60Z",
+      "email": "user.name+tag@sub.example.com",
+      "emoji": "😀",
+      "count": .number(1.0),
+      "ratio": .number(0.5),
+      "dynVal": ["plain": "ok"],
+    ])
+    try v10Validator.validateComponent(["id": "f2", "component": "Form", "date": "2000-02-29"])
+
+    // Invalid calendar dates (`2024-02-31`, `2023-02-29`, `1900-02-29`).
+    for badDate in ["2024-02-31", "2023-02-29", "1900-02-29"] {
+      #expect(throws: A2UIValidationError.self) {
+        try v10Validator.validateComponent([
+          "id": "d", "component": "Form", "date": .string(badDate),
+        ])
+      }
+    }
+    // Invalid times (`99:99:99`, non-23:59 leap second `12:34:60`).
+    for badTime in ["99:99:99", "12:34:60"] {
+      #expect(throws: A2UIValidationError.self) {
+        try v10Validator.validateComponent([
+          "id": "t", "component": "Form", "time": .string(badTime),
+        ])
+      }
+    }
+    // Timezone-less & space-separated `date-time` rejected.
+    for badDT in ["2024-01-01T14:30:00", "2024-01-01 14:30:00Z"] {
+      #expect(throws: A2UIValidationError.self) {
+        try v10Validator.validateComponent([
+          "id": "dt", "component": "Form", "dateTime": .string(badDT),
+        ])
+      }
+    }
+    // Malformed emails rejected.
+    for badEmail in ["a@.", "a@.b", "a@b.", "a@b..c", "no-at-sign"] {
+      #expect(throws: A2UIValidationError.self) {
+        try v10Validator.validateComponent([
+          "id": "e", "component": "Form", "email": .string(badEmail),
+        ])
+      }
+    }
+    // Multi-scalar family emoji `"👨‍👩‍👧‍👦"` has 7 Unicode scalars (> maxLength 2).
+    #expect(throws: A2UIValidationError.self) {
+      try v10Validator.validateComponent(["id": "em", "component": "Form", "emoji": "👨‍👩‍👧‍👦"])
+    }
+    // Non-finite `NaN` rejected on NumberType.
+    #expect(throws: A2UIValidationError.self) {
+      try v10Validator.validateComponent(["id": "n", "component": "Form", "ratio": .number(.nan)])
+    }
+    // v0.9 DynamicValue forbids plain objects.
+    let v09Validator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(allowUnknownElements: false, protocolVersion: .v09)
+    )
+    #expect(throws: A2UIValidationError.self) {
+      try v09Validator.validateComponent([
+        "id": "v9", "component": "Form", "dynVal": ["plain": "forbidden-in-v09"],
+      ])
+    }
   }
 }

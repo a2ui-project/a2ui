@@ -15,16 +15,110 @@
 import OrderedCollections
 import OrderedJSON
 
-/// Canonical in-memory type representation for A2UI catalog parameters, reusable local types, and
-/// function return types.
+/// Canonical closed-set type definition for A2UI Catalog Documents and in-memory catalog models.
 ///
-/// Covers all 18 closed Catalog Document variants (13 data types and 5 component-only types), plus
-/// an in-memory ``rawJSONSchema(_:)`` escape hatch for legacy JSON Schema fragments that cannot be
-/// translated losslessly.
-public indirect enum TypeDefinition: Sendable, Equatable {
-  // MARK: - Data Types (13)
+/// Covers all 18 protocol type kinds (13 data types + 5 component-only types) plus an internal
+/// ``Kind/rawJSONSchema(_:)`` escape hatch for legacy JSON Schema fragments that cannot be
+/// losslessly expressed in the closed type system.
+public struct TypeDefinition: Sendable, Equatable {
+  /// Discriminated union of the 18 protocol type kinds plus the legacy raw JSON Schema escape
+  /// hatch.
+  public indirect enum Kind: Sendable, Equatable {
+    case string(
+      dynamic: Bool,
+      formats: [String]?,
+      pattern: String?,
+      minLength: Int?,
+      maxLength: Int?,
+      defaultValue: String?
+    )
+    case number(
+      dynamic: Bool,
+      min: Double?,
+      max: Double?,
+      defaultValue: Double?
+    )
+    case integer(
+      dynamic: Bool,
+      min: Int?,
+      max: Int?,
+      defaultValue: Int?
+    )
+    case boolean(
+      dynamic: Bool,
+      defaultValue: Bool?
+    )
+    case `enum`(
+      values: [JSONValue],
+      valueType: EnumValueType,
+      dynamic: Bool,
+      defaultValue: JSONValue?
+    )
+    case const(value: JSONValue)
+    case any(
+      dynamic: Bool,
+      nullable: Bool,
+      defaultValue: JSONValue?
+    )
+    case object(
+      dynamic: Bool,
+      properties: [ParameterDefinition],
+      additionalProperties: AdditionalProperties,
+      atLeastOneOf: [[String]],
+      defaultValue: [String: JSONValue]?
+    )
+    case array(
+      dynamic: Bool,
+      items: TypeDefinition?,
+      minItems: Int?,
+      maxItems: Int?,
+      uniqueItems: Bool,
+      defaultValue: [JSONValue]?
+    )
+    case union(
+      variants: [TypeDefinition],
+      exclusive: Bool,
+      dynamic: Bool,
+      defaultValue: JSONValue?
+    )
+    case dataBinding
+    case functionCall
+    case ref(String, defaultValue: JSONValue?)
+    case child
+    case childList
+    case action
+    case checkRule
+    case accessibility
+    case rawJSONSchema(JSONValue)
+  }
 
-  case string(
+  /// The structural kind and type-specific constraints.
+  public var kind: Kind
+
+  /// Optional human- and LLM-readable description.
+  public var description: String?
+
+  /// Whether this type or parameter is deprecated.
+  public var deprecated: Bool
+
+  /// Optional deprecation explanation and migration hint.
+  public var deprecatedReason: String?
+
+  public init(
+    kind: Kind,
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) {
+    self.kind = kind
+    self.description = description
+    self.deprecated = deprecated
+    self.deprecatedReason = deprecatedReason
+  }
+
+  // MARK: - Static Factories
+
+  public static func string(
     dynamic: Bool = false,
     formats: [String]? = nil,
     pattern: String? = nil,
@@ -34,9 +128,23 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .string(
+        dynamic: dynamic,
+        formats: formats,
+        pattern: pattern,
+        minLength: minLength,
+        maxLength: maxLength,
+        defaultValue: defaultValue
+      ),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case number(
+  public static func number(
     dynamic: Bool = false,
     min: Double? = nil,
     max: Double? = nil,
@@ -44,9 +152,16 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .number(dynamic: dynamic, min: min, max: max, defaultValue: defaultValue),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case integer(
+  public static func integer(
     dynamic: Bool = false,
     min: Int? = nil,
     max: Int? = nil,
@@ -54,17 +169,31 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .integer(dynamic: dynamic, min: min, max: max, defaultValue: defaultValue),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case boolean(
+  public static func boolean(
     dynamic: Bool = false,
     defaultValue: Bool? = nil,
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .boolean(dynamic: dynamic, defaultValue: defaultValue),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case `enum`(
+  public static func `enum`(
     values: [JSONValue],
     valueType: EnumValueType = .string,
     dynamic: Bool = false,
@@ -72,25 +201,51 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .enum(
+        values: values,
+        valueType: valueType,
+        dynamic: dynamic,
+        defaultValue: defaultValue
+      ),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case const(
+  public static func const(
     value: JSONValue,
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .const(value: value),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case any(
+  public static func any(
     dynamic: Bool = false,
     nullable: Bool = false,
     defaultValue: JSONValue? = nil,
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .any(dynamic: dynamic, nullable: nullable, defaultValue: defaultValue),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case object(
+  public static func object(
     dynamic: Bool = false,
     properties: [ParameterDefinition] = [],
     additionalProperties: AdditionalProperties = .disallowed,
@@ -99,9 +254,22 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .object(
+        dynamic: dynamic,
+        properties: properties,
+        additionalProperties: additionalProperties,
+        atLeastOneOf: atLeastOneOf,
+        defaultValue: defaultValue
+      ),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case array(
+  public static func array(
     dynamic: Bool = false,
     items: TypeDefinition? = nil,
     minItems: Int? = nil,
@@ -111,204 +279,194 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .array(
+        dynamic: dynamic,
+        items: items,
+        minItems: minItems,
+        maxItems: maxItems,
+        uniqueItems: uniqueItems,
+        defaultValue: defaultValue
+      ),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case union(
+  public static func union(
     variants: [TypeDefinition],
-    exclusive: Bool = true,
+    exclusive: Bool = false,
     dynamic: Bool = false,
     defaultValue: JSONValue? = nil,
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .union(
+        variants: variants,
+        exclusive: exclusive,
+        dynamic: dynamic,
+        defaultValue: defaultValue
+      ),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case dataBinding(
+  public static func dataBinding(
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .dataBinding,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case functionCall(
+  public static func functionCall(
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .functionCall,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
 
-  case ref(
+  public static func ref(
     _ name: String,
     defaultValue: JSONValue? = nil,
     description: String? = nil,
     deprecated: Bool = false,
     deprecatedReason: String? = nil
-  )
-
-  // MARK: - Component-Only Types (5)
-
-  case child(
-    description: String? = nil,
-    deprecated: Bool = false,
-    deprecatedReason: String? = nil
-  )
-
-  case childList(
-    description: String? = nil,
-    deprecated: Bool = false,
-    deprecatedReason: String? = nil
-  )
-
-  case action(
-    description: String? = nil,
-    deprecated: Bool = false,
-    deprecatedReason: String? = nil
-  )
-
-  case checkRule(
-    description: String? = nil,
-    deprecated: Bool = false,
-    deprecatedReason: String? = nil
-  )
-
-  case accessibility(
-    description: String? = nil,
-    deprecated: Bool = false,
-    deprecatedReason: String? = nil
-  )
-
-  // MARK: - Legacy Escape Hatch (In-Memory Only)
-
-  /// Holds an untranslatable legacy JSON Schema fragment. Never emitted in Catalog Documents.
-  case rawJSONSchema(JSONValue)
-
-  // MARK: - Inspection Helpers
-
-  /// Human- and LLM-readable description attached to this type, if any.
-  public var description: String? {
-    switch self {
-    case .string(_, _, _, _, _, _, let desc, _, _),
-      .number(_, _, _, _, let desc, _, _),
-      .integer(_, _, _, _, let desc, _, _),
-      .boolean(_, _, let desc, _, _),
-      .enum(_, _, _, _, let desc, _, _),
-      .const(_, let desc, _, _),
-      .any(_, _, _, let desc, _, _),
-      .object(_, _, _, _, _, let desc, _, _),
-      .array(_, _, _, _, _, _, let desc, _, _),
-      .union(_, _, _, _, let desc, _, _),
-      .dataBinding(let desc, _, _),
-      .functionCall(let desc, _, _),
-      .ref(_, _, let desc, _, _),
-      .child(let desc, _, _),
-      .childList(let desc, _, _),
-      .action(let desc, _, _),
-      .checkRule(let desc, _, _),
-      .accessibility(let desc, _, _):
-      return desc
-    case .rawJSONSchema(let raw):
-      return raw["description"]?.stringValue
-    }
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .ref(name, defaultValue: defaultValue),
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
   }
 
-  /// Whether this type is marked deprecated.
-  public var isDeprecated: Bool {
-    switch self {
-    case .string(_, _, _, _, _, _, _, let deprecated, _),
-      .number(_, _, _, _, _, let deprecated, _),
-      .integer(_, _, _, _, _, let deprecated, _),
-      .boolean(_, _, _, let deprecated, _),
-      .enum(_, _, _, _, _, let deprecated, _),
-      .const(_, _, let deprecated, _),
-      .any(_, _, _, _, let deprecated, _),
-      .object(_, _, _, _, _, _, let deprecated, _),
-      .array(_, _, _, _, _, _, _, let deprecated, _),
-      .union(_, _, _, _, _, let deprecated, _),
-      .dataBinding(_, let deprecated, _),
-      .functionCall(_, let deprecated, _),
-      .ref(_, _, _, let deprecated, _),
-      .child(_, let deprecated, _),
-      .childList(_, let deprecated, _),
-      .action(_, let deprecated, _),
-      .checkRule(_, let deprecated, _),
-      .accessibility(_, let deprecated, _):
-      return deprecated
-    case .rawJSONSchema(let raw):
-      return raw["deprecated"]?.boolValue ?? false
-    }
+  public static func child(
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .child,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
   }
 
-  /// Optional deprecation explanation and migration hint.
-  public var deprecatedReason: String? {
-    switch self {
-    case .string(_, _, _, _, _, _, _, _, let reason),
-      .number(_, _, _, _, _, _, let reason),
-      .integer(_, _, _, _, _, _, let reason),
-      .boolean(_, _, _, _, let reason),
-      .enum(_, _, _, _, _, _, let reason),
-      .const(_, _, _, let reason),
-      .any(_, _, _, _, _, let reason),
-      .object(_, _, _, _, _, _, _, let reason),
-      .array(_, _, _, _, _, _, _, _, let reason),
-      .union(_, _, _, _, _, _, let reason),
-      .dataBinding(_, _, let reason),
-      .functionCall(_, _, let reason),
-      .ref(_, _, _, _, let reason),
-      .child(_, _, let reason),
-      .childList(_, _, let reason),
-      .action(_, _, let reason),
-      .checkRule(_, _, let reason),
-      .accessibility(_, _, let reason):
-      return reason
-    case .rawJSONSchema:
-      return nil
-    }
+  public static func childList(
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .childList,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
   }
 
-  /// Default JSON value declared on this type, if any.
+  public static func action(
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .action,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
+
+  public static func checkRule(
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .checkRule,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
+
+  public static func accessibility(
+    description: String? = nil,
+    deprecated: Bool = false,
+    deprecatedReason: String? = nil
+  ) -> TypeDefinition {
+    TypeDefinition(
+      kind: .accessibility,
+      description: description,
+      deprecated: deprecated,
+      deprecatedReason: deprecatedReason
+    )
+  }
+
+  internal static func rawJSONSchema(_ schema: JSONValue) -> TypeDefinition {
+    TypeDefinition(
+      kind: .rawJSONSchema(schema),
+      description: schema["description"]?.stringValue,
+      deprecated: schema["deprecated"]?.boolValue ?? false
+    )
+  }
+
+  // MARK: - Introspection & Helpers
+
+  /// The default value configured on this type, if any.
   public var defaultJSONValue: JSONValue? {
-    switch self {
-    case .string(_, _, _, _, _, let val, _, _, _):
-      return val.map { .string($0) }
-    case .number(_, _, _, let val, _, _, _):
-      return val.map { .number($0) }
-    case .integer(_, _, _, let val, _, _, _):
-      return val.map { .integer($0) }
-    case .boolean(_, let val, _, _, _):
-      return val.map { .boolean($0) }
-    case .enum(_, _, _, let val, _, _, _),
-      .any(_, _, let val, _, _, _),
-      .union(_, _, _, let val, _, _, _),
-      .ref(_, let val, _, _, _):
-      return val
-    case .object(_, _, _, _, let val, _, _, _):
-      guard let val else { return nil }
-      var ordered: OrderedDictionary<String, JSONValue> = [:]
-      for key in val.keys.sorted() {
-        ordered[key] = val[key]
-      }
-      return .object(ordered)
-    case .array(_, _, _, _, _, let val, _, _, _):
-      return val.map { .array($0) }
+    switch kind {
+    case .string(_, _, _, _, _, let v): return v.map(JSONValue.string)
+    case .number(_, _, _, let v): return v.map(JSONValue.number)
+    case .integer(_, _, _, let v): return v.map(JSONValue.integer)
+    case .boolean(_, let v): return v.map(JSONValue.boolean)
+    case .enum(_, _, _, let v), .any(_, _, let v), .union(_, _, _, let v), .ref(_, let v):
+      return v
+    case .object(_, _, _, _, let v):
+      return v.map { dict in .object(OrderedDictionary(uniqueKeysWithValues: dict.map { $0 })) }
+    case .array(_, _, _, _, _, let v):
+      return v.map(JSONValue.array)
+    case .rawJSONSchema(let raw):
+      return raw["default"]
     case .const, .dataBinding, .functionCall, .child, .childList, .action, .checkRule,
       .accessibility:
       return nil
-    case .rawJSONSchema(let raw):
-      return raw["default"]
     }
   }
 
-  /// Whether this type accepts dynamic bindings and function calls.
+  /// Whether this type accepts dynamic bindings / function calls.
   public var isDynamic: Bool {
-    switch self {
-    case .string(let dynamic, _, _, _, _, _, _, _, _),
-      .number(let dynamic, _, _, _, _, _, _),
-      .integer(let dynamic, _, _, _, _, _, _),
-      .boolean(let dynamic, _, _, _, _),
-      .enum(_, _, let dynamic, _, _, _, _),
-      .any(let dynamic, _, _, _, _, _),
-      .object(let dynamic, _, _, _, _, _, _, _),
-      .array(let dynamic, _, _, _, _, _, _, _, _),
-      .union(_, _, let dynamic, _, _, _, _):
-      return dynamic
+    switch kind {
+    case .string(let d, _, _, _, _, _),
+      .number(let d, _, _, _),
+      .integer(let d, _, _, _),
+      .boolean(let d, _),
+      .enum(_, _, let d, _),
+      .any(let d, _, _),
+      .object(let d, _, _, _, _),
+      .array(let d, _, _, _, _, _),
+      .union(_, _, let d, _):
+      return d
     case .dataBinding, .functionCall:
       return true
     case .const, .ref, .child, .childList, .action, .checkRule, .accessibility, .rawJSONSchema:
@@ -316,16 +474,18 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     }
   }
 
-  /// Whether this type is a pure data type (contains no component-only variants).
+  /// Whether this type (and all nested types) is valid in data-only contexts (`types`,
+  /// `surfaceProperties`, and `functions`), i.e. contains no component-only types.
   public var isDataType: Bool {
-    switch self {
+    switch kind {
     case .child, .childList, .action, .checkRule, .accessibility:
       return false
-    case .object(_, let properties, let additionalProperties, _, _, _, _, _):
-      return properties.allSatisfy { $0.type.isDataType } && additionalProperties.isDataType
-    case .array(_, let items, _, _, _, _, _, _, _):
+    case .object(_, let properties, let additional, _, _):
+      return properties.allSatisfy(\.type.isDataType)
+        && (additional.typedSchema?.isDataType ?? true)
+    case .array(_, let items, _, _, _, _):
       return items?.isDataType ?? true
-    case .union(let variants, _, _, _, _, _, _):
+    case .union(let variants, _, _, _):
       return variants.allSatisfy(\.isDataType)
     case .string, .number, .integer, .boolean, .enum, .const, .any, .dataBinding, .functionCall,
       .ref, .rawJSONSchema:
@@ -333,195 +493,107 @@ public indirect enum TypeDefinition: Sendable, Equatable {
     }
   }
 
-  /// Whether this type or any nested child type holds a ``rawJSONSchema(_:)`` fragment.
+  /// Whether this type or any nested child type holds a legacy raw JSON Schema fragment.
   public var containsRawJSONSchema: Bool {
-    switch self {
+    switch kind {
     case .rawJSONSchema:
       return true
-    case .object(_, let properties, let additionalProperties, _, _, _, _, _):
+    case .object(_, let properties, let additional, _, _):
       return properties.contains { $0.type.containsRawJSONSchema }
-        || !additionalProperties.isCanonical
-    case .array(_, let items, _, _, _, _, _, _, _):
+        || (additional.typedSchema?.containsRawJSONSchema ?? false)
+    case .array(_, let items, _, _, _, _):
       return items?.containsRawJSONSchema ?? false
-    case .union(let variants, _, _, _, _, _, _):
-      return variants.contains(where: \.containsRawJSONSchema)
-    case .string, .number, .integer, .boolean, .enum, .const, .any, .dataBinding, .functionCall,
-      .ref, .child, .childList, .action, .checkRule, .accessibility:
+    case .union(let variants, _, _, _):
+      return variants.contains { $0.containsRawJSONSchema }
+    default:
       return false
     }
   }
 
-  /// Returns a copy of this type with its `dynamic` flag updated, if the variant supports it.
-  internal func withDynamic(_ dynamic: Bool) -> TypeDefinition {
-    switch self {
-    case .string(
-      _, let formats, let pattern, let minLength, let maxLength, let def, let desc,
-      let dep, let reason):
-      return .string(
-        dynamic: dynamic,
-        formats: formats,
-        pattern: pattern,
-        minLength: minLength,
-        maxLength: maxLength,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .number(_, let min, let max, let def, let desc, let dep, let reason):
-      return .number(
-        dynamic: dynamic,
-        min: min,
-        max: max,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .integer(_, let min, let max, let def, let desc, let dep, let reason):
-      return .integer(
-        dynamic: dynamic,
-        min: min,
-        max: max,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .boolean(_, let def, let desc, let dep, let reason):
-      return .boolean(
-        dynamic: dynamic,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .enum(let values, let valueType, _, let def, let desc, let dep, let reason):
-      return .enum(
-        values: values,
-        valueType: valueType,
-        dynamic: dynamic,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .any(_, let nullable, let def, let desc, let dep, let reason):
-      return .any(
-        dynamic: dynamic,
-        nullable: nullable,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .object(
-      _, let props, let additional, let atLeastOneOf, let def, let desc, let dep,
-      let reason):
-      return .object(
-        dynamic: dynamic,
-        properties: props,
-        additionalProperties: additional,
-        atLeastOneOf: atLeastOneOf,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .array(
-      _, let items, let minItems, let maxItems, let unique, let def, let desc, let dep,
-      let reason):
-      return .array(
-        dynamic: dynamic,
-        items: items,
-        minItems: minItems,
-        maxItems: maxItems,
-        uniqueItems: unique,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
-    case .union(let variants, let exclusive, _, let def, let desc, let dep, let reason):
-      return .union(
-        variants: variants,
-        exclusive: exclusive,
-        dynamic: dynamic,
-        defaultValue: def,
-        description: desc,
-        deprecated: dep,
-        deprecatedReason: reason
-      )
+  /// Returns a copy with `dynamic` updated on kinds that support dynamic bindings.
+  internal func withDynamic(_ newDynamic: Bool) -> TypeDefinition {
+    var copy = self
+    switch kind {
+    case .string(_, let f, let p, let minL, let maxL, let def):
+      copy.kind = .string(
+        dynamic: newDynamic, formats: f, pattern: p, minLength: minL, maxLength: maxL,
+        defaultValue: def)
+    case .number(_, let minV, let maxV, let def):
+      copy.kind = .number(dynamic: newDynamic, min: minV, max: maxV, defaultValue: def)
+    case .integer(_, let minV, let maxV, let def):
+      copy.kind = .integer(dynamic: newDynamic, min: minV, max: maxV, defaultValue: def)
+    case .boolean(_, let def):
+      copy.kind = .boolean(dynamic: newDynamic, defaultValue: def)
+    case .enum(let vals, let vt, _, let def):
+      copy.kind = .enum(values: vals, valueType: vt, dynamic: newDynamic, defaultValue: def)
+    case .any(_, let nullable, let def):
+      copy.kind = .any(dynamic: newDynamic, nullable: nullable, defaultValue: def)
+    case .object(_, let props, let add, let groups, let def):
+      copy.kind = .object(
+        dynamic: newDynamic, properties: props, additionalProperties: add, atLeastOneOf: groups,
+        defaultValue: def)
+    case .array(_, let items, let minI, let maxI, let unique, let def):
+      copy.kind = .array(
+        dynamic: newDynamic, items: items, minItems: minI, maxItems: maxI, uniqueItems: unique,
+        defaultValue: def)
+    case .union(let variants, let excl, _, let def):
+      copy.kind = .union(
+        variants: variants, exclusive: excl, dynamic: newDynamic, defaultValue: def)
     case .const, .dataBinding, .functionCall, .ref, .child, .childList, .action, .checkRule,
       .accessibility, .rawJSONSchema:
-      return self
+      break
     }
+    return copy
   }
 
-  /// Returns a copy of this type with metadata fields (`description`, `deprecated`,
-  /// `deprecatedReason`) cleared, used when flattening onto ``ParameterDefinition``.
-  internal func strippingParameterMetadata() -> TypeDefinition {
-    switch self {
-    case .string(
-      let dynamic, let formats, let pattern, let minLength, let maxLength, let def, _,
-      _, _):
-      return .string(
-        dynamic: dynamic,
-        formats: formats,
-        pattern: pattern,
-        minLength: minLength,
-        maxLength: maxLength,
-        defaultValue: def
-      )
-    case .number(let dynamic, let min, let max, let def, _, _, _):
-      return .number(dynamic: dynamic, min: min, max: max, defaultValue: def)
-    case .integer(let dynamic, let min, let max, let def, _, _, _):
-      return .integer(dynamic: dynamic, min: min, max: max, defaultValue: def)
-    case .boolean(let dynamic, let def, _, _, _):
-      return .boolean(dynamic: dynamic, defaultValue: def)
-    case .enum(let values, let valueType, let dynamic, let def, _, _, _):
-      return .enum(values: values, valueType: valueType, dynamic: dynamic, defaultValue: def)
-    case .const(let value, _, _, _):
-      return .const(value: value)
-    case .any(let dynamic, let nullable, let def, _, _, _):
-      return .any(dynamic: dynamic, nullable: nullable, defaultValue: def)
-    case .object(let dynamic, let props, let additional, let atLeastOneOf, let def, _, _, _):
-      return .object(
-        dynamic: dynamic,
-        properties: props,
-        additionalProperties: additional,
-        atLeastOneOf: atLeastOneOf,
-        defaultValue: def
-      )
-    case .array(let dynamic, let items, let minItems, let maxItems, let unique, let def, _, _, _):
-      return .array(
-        dynamic: dynamic,
-        items: items,
-        minItems: minItems,
-        maxItems: maxItems,
-        uniqueItems: unique,
-        defaultValue: def
-      )
-    case .union(let variants, let exclusive, let dynamic, let def, _, _, _):
-      return .union(variants: variants, exclusive: exclusive, dynamic: dynamic, defaultValue: def)
-    case .dataBinding:
-      return .dataBinding()
-    case .functionCall:
-      return .functionCall()
-    case .ref(let name, let def, _, _, _):
-      return .ref(name, defaultValue: def)
-    case .child:
-      return .child()
-    case .childList:
-      return .childList()
-    case .action:
-      return .action()
-    case .checkRule:
-      return .checkRule()
-    case .accessibility:
-      return .accessibility()
-    case .rawJSONSchema:
-      return self
+  /// Returns a copy with `defaultValue` updated when compatible with this kind.
+  internal func withDefault(_ rawDefault: JSONValue?) -> TypeDefinition {
+    guard let rawDefault else { return self }
+    var copy = self
+    switch kind {
+    case .string(let d, let f, let p, let minL, let maxL, _):
+      copy.kind = .string(
+        dynamic: d, formats: f, pattern: p, minLength: minL, maxLength: maxL,
+        defaultValue: rawDefault.stringValue)
+    case .number(let d, let minV, let maxV, _):
+      copy.kind = .number(dynamic: d, min: minV, max: maxV, defaultValue: rawDefault.doubleValue)
+    case .integer(let d, let minV, let maxV, _):
+      copy.kind = .integer(dynamic: d, min: minV, max: maxV, defaultValue: rawDefault.intValue)
+    case .boolean(let d, _):
+      copy.kind = .boolean(dynamic: d, defaultValue: rawDefault.boolValue)
+    case .enum(let vals, let vt, let d, _):
+      copy.kind = .enum(values: vals, valueType: vt, dynamic: d, defaultValue: rawDefault)
+    case .any(let d, let nullable, _):
+      copy.kind = .any(dynamic: d, nullable: nullable, defaultValue: rawDefault)
+    case .object(let d, let props, let add, let groups, _):
+      copy.kind = .object(
+        dynamic: d, properties: props, additionalProperties: add, atLeastOneOf: groups,
+        defaultValue: rawDefault.dictionaryValue)
+    case .array(let d, let items, let minI, let maxI, let unique, _):
+      copy.kind = .array(
+        dynamic: d, items: items, minItems: minI, maxItems: maxI, uniqueItems: unique,
+        defaultValue: rawDefault.arrayValue)
+    case .union(let variants, let excl, let d, _):
+      copy.kind = .union(variants: variants, exclusive: excl, dynamic: d, defaultValue: rawDefault)
+    case .ref(let name, _):
+      copy.kind = .ref(name, defaultValue: rawDefault)
+    default:
+      break
     }
+    return copy
+  }
+
+  /// Strips parameter-level metadata (`description`, `deprecated`, `deprecatedReason`) so
+  /// parameter and type metadata do not duplicate when nested inside ``ParameterDefinition``.
+  internal func strippingParameterMetadata() -> TypeDefinition {
+    TypeDefinition(kind: kind, description: nil, deprecated: false, deprecatedReason: nil)
+  }
+}
+
+extension AdditionalProperties {
+  /// Returns the inner value type when `.typed`, or `nil` otherwise.
+  internal var typedSchema: TypeDefinition? {
+    if case .typed(let type) = self { return type }
+    return nil
   }
 }

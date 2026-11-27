@@ -115,30 +115,21 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     }
     set {
       storedThemeSchema = newValue
-      storedSurfaceProperties = nil
+      storedSurfaceProperties = newValue.map {
+        CatalogJSONSchemaCodec.surfacePropertiesDefinition(from: $0.jsonValue)
+      }
     }
   }
 
   /// Optional canonical surface properties definition (maps to v0.9 `theme`).
   public var surfaceProperties: SurfacePropertiesDefinition? {
     get {
-      if let storedSurfaceProperties {
-        return storedSurfaceProperties
-      }
-      guard let storedThemeSchema else { return nil }
-      return CatalogJSONSchemaCodec.surfacePropertiesDefinition(from: storedThemeSchema.jsonValue)
+      storedSurfaceProperties
     }
     set {
       storedSurfaceProperties = newValue
       storedThemeSchema = nil
     }
-  }
-
-  /// Whether this catalog's surface properties are backed directly by a canonical
-  /// ``SurfacePropertiesDefinition``.
-  internal var hasCanonicalSurfaceProperties: Bool {
-    guard let storedSurfaceProperties, storedThemeSchema == nil else { return false }
-    return storedSurfaceProperties.isCanonical
   }
 
   /// Creates a catalog from arrays of components and functions.
@@ -198,7 +189,11 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
       functionMap[function.api.name] = function
     }
     self.storedThemeSchema = themeSchema
-    self.storedSurfaceProperties = surfaceProperties
+    self.storedSurfaceProperties =
+      surfaceProperties
+      ?? themeSchema.map {
+        CatalogJSONSchemaCodec.surfacePropertiesDefinition(from: $0.jsonValue)
+      }
     self.functions = functionMap
     self.orderedFunctionNames = functionOrder
     if self.isAtLeastV10 && self.functions["@index"] == nil {
@@ -303,8 +298,9 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
       if let already = component as? AnyComponentAPI {
         return already
       }
-      if component.hasCanonicalDefinition {
-        return AnyComponentAPI(definition: component.definition)
+      let def = component.definition
+      if def.isCanonical {
+        return AnyComponentAPI(definition: def)
       }
       return AnyComponentAPI(
         name: component.name,
@@ -507,8 +503,22 @@ extension Catalog where Component == AnyComponentAPI {
   ) throws -> AnyCatalog {
     if CatalogDocumentCodec.isCatalogDocument(json) {
       var model = try CatalogDocumentCodec.decode(json)
-      if let catalogID { model.catalogID = catalogID }
-      if let protocolVersion { model.protocolVersion = protocolVersion }
+      if let catalogID {
+        guard !catalogID.isEmpty else {
+          throw A2UICatalogError("Catalog 'catalogId' override must be a non-empty string.")
+        }
+        model.catalogID = catalogID
+      }
+      if let protocolVersion {
+        let normalized = CatalogDocumentCodec.normalizeProtocolVersion(protocolVersion)
+        guard CatalogDocumentCodec.isValidSemVer(normalized) else {
+          throw A2UICatalogError(
+            "Catalog 'protocolVersion' override must be a valid SemVer string, got "
+              + "'\(protocolVersion)'."
+          )
+        }
+        model.protocolVersion = normalized
+      }
       return AnyCatalog(model: model, functions: functions)
     }
     let model = try CatalogJSONSchemaCodec.fromJSONSchema(

@@ -58,7 +58,7 @@ public struct ParameterDefinition: Sendable, Equatable {
 
   /// Effective deprecation flag combining parameter- and type-level metadata.
   public var isEffectivelyDeprecated: Bool {
-    deprecated || type.isDeprecated
+    deprecated || type.deprecated
   }
 
   /// Effective deprecation reason falling back to any reason attached to ``type``.

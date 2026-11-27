@@ -28,10 +28,6 @@ public protocol ComponentAPI: Sendable {
   /// Canonical JSON-Schema-independent component definition.
   var definition: ComponentDefinition { get }
 
-  /// Whether this component is backed directly by a canonical ``ComponentDefinition`` with no
-  /// untranslatable raw JSON Schema escape hatch.
-  var hasCanonicalDefinition: Bool { get }
-
   /// The compiled JSON Schema used for legacy validation and capability generation.
   var schema: Schema { get }
 
@@ -49,7 +45,6 @@ extension ComponentAPI {
   public var allowedParents: [String]? { nil }
   public var allowedChildren: [String]? { nil }
   public var metadata: [String: JSONValue]? { nil }
-  public var hasCanonicalDefinition: Bool { false }
 
   public var definition: ComponentDefinition {
     CatalogJSONSchemaCodec.componentDefinition(
@@ -81,20 +76,12 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
   public var metadata: [String: JSONValue]?
 
   private var storedSchema: Schema?
-  private var storedDefinition: ComponentDefinition?
+  private var storedDefinition: ComponentDefinition
 
   /// Canonical JSON-Schema-independent component definition.
   public var definition: ComponentDefinition {
     get {
-      var def =
-        storedDefinition
-        ?? CatalogJSONSchemaCodec.componentDefinition(
-          from: name,
-          schema: storedSchema?.jsonValue ?? .object([:]),
-          allowedParents: allowedParents,
-          allowedChildren: allowedChildren,
-          metadata: metadata
-        )
+      var def = storedDefinition
       def.name = name
       def.allowedParents = allowedParents
       def.allowedChildren = allowedChildren
@@ -111,12 +98,6 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
     }
   }
 
-  /// Whether this component is backed directly by a canonical ``ComponentDefinition``.
-  public var hasCanonicalDefinition: Bool {
-    guard let storedDefinition, storedSchema == nil else { return false }
-    return storedDefinition.isCanonical
-  }
-
   /// The compiled JSON Schema used for legacy validation and capability generation.
   public var schema: Schema {
     get {
@@ -127,7 +108,13 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
     }
     set {
       storedSchema = newValue
-      storedDefinition = nil
+      storedDefinition = CatalogJSONSchemaCodec.componentDefinition(
+        from: name,
+        schema: newValue.jsonValue,
+        allowedParents: allowedParents,
+        allowedChildren: allowedChildren,
+        metadata: metadata
+      )
     }
   }
 
@@ -142,7 +129,8 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
     self.storedSchema = nil
   }
 
-  /// Creates a component API from a compiled `JSONSchema.Schema`.
+  /// Creates a component API from a compiled `JSONSchema.Schema`, precomputing its canonical
+  /// ``ComponentDefinition`` once on initialization.
   public init(
     name: String,
     schema: Schema,
@@ -155,7 +143,13 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
     self.allowedChildren = allowedChildren
     self.metadata = metadata
     self.storedSchema = schema
-    self.storedDefinition = nil
+    self.storedDefinition = CatalogJSONSchemaCodec.componentDefinition(
+      from: name,
+      schema: schema.jsonValue,
+      allowedParents: allowedParents,
+      allowedChildren: allowedChildren,
+      metadata: metadata
+    )
   }
 
   public static func == (lhs: AnyComponentAPI, rhs: AnyComponentAPI) -> Bool {
@@ -166,14 +160,7 @@ public struct AnyComponentAPI: ComponentAPI, Sendable, Equatable {
     else {
       return false
     }
-    if let lhsDef = lhs.storedDefinition, let rhsDef = rhs.storedDefinition,
-      lhs.storedSchema == nil, rhs.storedSchema == nil
-    {
-      return lhsDef == rhsDef
-    }
-    if let lhsSchema = lhs.storedSchema, let rhsSchema = rhs.storedSchema,
-      lhs.storedDefinition == nil, rhs.storedDefinition == nil
-    {
+    if let lhsSchema = lhs.storedSchema, let rhsSchema = rhs.storedSchema {
       return lhsSchema == rhsSchema
     }
     return lhs.definition == rhs.definition

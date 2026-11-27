@@ -36,24 +36,16 @@ public struct FunctionAPI: Sendable, Equatable {
   public var requiresUserActivation: Bool
 
   private var storedSchema: Schema?
-  private var storedDefinition: FunctionDefinition?
+  private var storedDefinition: FunctionDefinition
 
   /// Canonical JSON-Schema-independent function definition.
   public var definition: FunctionDefinition {
     get {
-      var def =
-        storedDefinition
-        ?? CatalogJSONSchemaCodec.functionDefinition(
-          from: name,
-          returnType: returnType,
-          argsSchema: storedSchema?.jsonValue ?? .object([:]),
-          description: description,
-          allowedCallers: allowedCallers,
-          requiresUserActivation: requiresUserActivation
-        )
+      var def = storedDefinition
       def.name = name
-      if let description {
-        def.description = description
+      def.description = description
+      if def.returnType.functionReturnType != returnType {
+        def.returnType = FunctionReturnDefinition(returnType: returnType)
       }
       def.allowedCallers = allowedCallers
       def.requiresUserActivation = requiresUserActivation
@@ -70,12 +62,6 @@ public struct FunctionAPI: Sendable, Equatable {
     }
   }
 
-  /// Whether this function API is backed directly by a canonical ``FunctionDefinition``.
-  public var hasCanonicalDefinition: Bool {
-    guard let storedDefinition, storedSchema == nil else { return false }
-    return storedDefinition.isCanonical
-  }
-
   /// The JSON Schema for the function's arguments.
   public var schema: Schema {
     get {
@@ -86,7 +72,14 @@ public struct FunctionAPI: Sendable, Equatable {
     }
     set {
       storedSchema = newValue
-      storedDefinition = nil
+      storedDefinition = CatalogJSONSchemaCodec.functionDefinition(
+        from: name,
+        returnType: returnType,
+        argsSchema: newValue.jsonValue,
+        description: description,
+        allowedCallers: allowedCallers,
+        requiresUserActivation: requiresUserActivation
+      )
     }
   }
 
@@ -102,7 +95,8 @@ public struct FunctionAPI: Sendable, Equatable {
     self.storedSchema = nil
   }
 
-  /// Creates a function API from a compiled `JSONSchema.Schema`.
+  /// Creates a function API from a compiled `JSONSchema.Schema`, precomputing its canonical
+  /// ``FunctionDefinition`` once on initialization.
   public init(
     name: String,
     returnType: FunctionReturnType,
@@ -110,19 +104,24 @@ public struct FunctionAPI: Sendable, Equatable {
     allowedCallers: AllowedCallers = .rendererOnly,
     requiresUserActivation: Bool = false
   ) {
+    let resolvedDescription = schema.jsonValue["description"]?.stringValue
     self.name = name
-    self.description = schema.jsonValue["description"]?.stringValue
+    self.description = resolvedDescription
     self.returnType = returnType
     self.allowedCallers = allowedCallers
     self.requiresUserActivation = requiresUserActivation
     self.storedSchema = schema
-    self.storedDefinition = nil
+    self.storedDefinition = CatalogJSONSchemaCodec.functionDefinition(
+      from: name,
+      returnType: returnType,
+      argsSchema: schema.jsonValue,
+      description: resolvedDescription,
+      allowedCallers: allowedCallers,
+      requiresUserActivation: requiresUserActivation
+    )
   }
 
   /// Validates that a function requiring user activation is restricted to `rendererOnly`.
-  ///
-  /// - Throws: ``A2UICatalogError`` if `requiresUserActivation` is `true` and `allowedCallers` is
-  ///   not `.rendererOnly`.
   public func validateCallerConstraints() throws {
     if requiresUserActivation && allowedCallers != .rendererOnly {
       throw A2UICatalogError(
@@ -136,20 +135,14 @@ public struct FunctionAPI: Sendable, Equatable {
 
   public static func == (lhs: FunctionAPI, rhs: FunctionAPI) -> Bool {
     guard lhs.name == rhs.name,
+      lhs.description == rhs.description,
       lhs.returnType == rhs.returnType,
       lhs.allowedCallers == rhs.allowedCallers,
       lhs.requiresUserActivation == rhs.requiresUserActivation
     else {
       return false
     }
-    if let lhsDef = lhs.storedDefinition, let rhsDef = rhs.storedDefinition,
-      lhs.storedSchema == nil, rhs.storedSchema == nil
-    {
-      return lhsDef == rhsDef
-    }
-    if let lhsSchema = lhs.storedSchema, let rhsSchema = rhs.storedSchema,
-      lhs.storedDefinition == nil, rhs.storedDefinition == nil
-    {
+    if let lhsSchema = lhs.storedSchema, let rhsSchema = rhs.storedSchema {
       return lhsSchema == rhsSchema
     }
     return lhs.definition == rhs.definition

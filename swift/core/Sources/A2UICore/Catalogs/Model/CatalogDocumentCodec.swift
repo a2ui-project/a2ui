@@ -20,114 +20,59 @@ import OrderedJSON
 ///
 /// Enforces the structural and semantic invariants of `catalog_schema.json`, including format
 /// version discrimination, UAX #31 identifiers, the `"Surface"` component name ban, the `"@"`
-/// function prefix ban, caller/user-activation policy, unique names, and catalog-local `ref`
-/// resolution.
+/// function prefix ban, caller/user-activation policy, unique names, type constraints, and
+/// catalog-local `ref` resolution.
 public enum CatalogDocumentCodec {
   /// The Catalog Document format version supported by this codec.
   public static let supportedFormatVersion = "1.0"
 
   private static let rootAllowedKeys: Set<String> = [
-    "$schema",
-    "formatVersion",
-    "catalogId",
-    "protocolVersion",
-    "title",
-    "description",
-    "instructions",
-    "metadata",
-    "types",
-    "surfaceProperties",
-    "components",
-    "functions",
+    "$schema", "formatVersion", "catalogId", "protocolVersion", "title", "description",
+    "instructions", "metadata", "types", "surfaceProperties", "components", "functions",
   ]
-
   private static let componentAllowedKeys: Set<String> = [
-    "name",
-    "description",
-    "checkable",
-    "parameters",
-    "atLeastOneOf",
-    "allowedParents",
-    "allowedChildren",
-    "metadata",
-    "deprecated",
-    "deprecatedReason",
+    "name", "description", "checkable", "parameters", "atLeastOneOf", "allowedParents",
+    "allowedChildren", "metadata", "deprecated", "deprecatedReason",
   ]
-
   private static let functionAllowedKeys: Set<String> = [
-    "name",
-    "description",
-    "returnType",
-    "allowedCallers",
-    "requiresUserActivation",
-    "parameters",
-    "atLeastOneOf",
-    "additionalParameters",
-    "deprecated",
-    "deprecatedReason",
+    "name", "description", "returnType", "allowedCallers", "requiresUserActivation", "parameters",
+    "atLeastOneOf", "additionalParameters", "deprecated", "deprecatedReason",
   ]
-
   private static let surfacePropertiesAllowedKeys: Set<String> = [
-    "description",
-    "properties",
-    "additionalProperties",
+    "description", "properties", "additionalProperties",
   ]
-
   private static let reservedComponentEnvelopeKeys: Set<String> = [
-    "id",
-    "component",
-    "@catalogId",
-    "@accessibility",
-    "@metadata",
-    "@checks",
+    "id", "component", "catalogId", "accessibility", "checks", "metadata",
   ]
-
   private static let baseTypeKeys: Set<String> = [
-    "type",
-    "description",
-    "deprecated",
-    "deprecatedReason",
+    "type", "description", "deprecated", "deprecatedReason",
   ]
-
-  private static let parameterIdentityKeys: Set<String> = [
-    "name",
-    "required",
+  private static let parameterOnlyKeys: Set<String> = ["name", "required"]
+  private static let validStringFormats: Set<String> = [
+    "date", "time", "date-time", "uri", "email",
   ]
-
-  private static let semverRegex: NSRegularExpression = try! NSRegularExpression(
-    pattern:
-      "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?"
-      + "(?:-((?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)"
-      + "(?:\\.(?:0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?"
-      + "(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
-  )
 
   // MARK: - Format Detection
 
-  /// Returns `true` if `value` is a JSON object declaring a string `formatVersion`.
-  public static func isCatalogDocument(_ value: JSONValue) -> Bool {
-    guard let object = value.objectValue else { return false }
-    return object["formatVersion"]?.stringValue != nil
+  /// Returns `true` when `json` is an object declaring a string `formatVersion` field.
+  ///
+  /// Any object with a string `formatVersion` is treated as a Catalog Document so unsupported
+  /// future versions fail explicitly rather than falling back to legacy JSON Schema parsing.
+  public static func isCatalogDocument(_ json: JSONValue) -> Bool {
+    json.objectValue?["formatVersion"]?.stringValue != nil
   }
 
   // MARK: - Decoding
 
   /// Decodes and validates a Catalog Document `JSONValue` into a canonical ``CatalogModel``.
-  ///
-  /// - Parameter value: Raw JSON object conforming to `catalog_schema.json`.
-  /// - Returns: Validated ``CatalogModel``.
-  /// - Throws: ``A2UICatalogError`` when the document violates any schema or semantic invariant.
-  public static func decode(_ value: JSONValue) throws -> CatalogModel {
-    guard let root = value.objectValue else {
+  public static func decode(_ document: JSONValue) throws -> CatalogModel {
+    guard let root = document.objectValue else {
       throw A2UICatalogError("Catalog Document must be a JSON object.")
     }
-    try assertAllowedKeys(root, allowed: rootAllowedKeys, context: "Catalog Document root")
+    let reader = ObjectReader(object: root, path: "catalog")
+    try reader.assertAllowedKeys(rootAllowedKeys)
 
-    guard let formatVersion = root["formatVersion"]?.stringValue else {
-      throw A2UICatalogError(
-        "Catalog Document is missing required string field 'formatVersion'."
-      )
-    }
+    let formatVersion = try reader.requiredString("formatVersion")
     guard formatVersion == supportedFormatVersion else {
       throw A2UICatalogError(
         "Unsupported Catalog Document formatVersion '\(formatVersion)'; "
@@ -135,47 +80,48 @@ public enum CatalogDocumentCodec {
       )
     }
 
-    guard let catalogID = root["catalogId"]?.stringValue, !catalogID.isEmpty else {
-      throw A2UICatalogError("Catalog Document 'catalogId' must be a non-empty string.")
+    let catalogID = try reader.requiredString("catalogId")
+    let protocolVersion = try reader.optionalString("protocolVersion")
+    if let protocolVersion, !isValidSemVer(protocolVersion) {
+      throw A2UICatalogError(
+        "Field 'protocolVersion' must be a valid SemVer string, got '\(protocolVersion)'."
+      )
     }
 
-    let protocolVersion = try decodeOptionalSemVer(root["protocolVersion"]) ?? "1.0"
-    let schemaURI = try decodeOptionalString(root["$schema"], field: "$schema")
-    let title = try decodeOptionalString(root["title"], field: "title")
-    let description = try decodeOptionalString(root["description"], field: "description")
-    let instructions = try decodeOptionalString(root["instructions"], field: "instructions")
-    let metadata = try decodeOptionalMetadata(root["metadata"], pathPrefix: "metadata")
     let types = try decodeTypes(root["types"])
     let surfaceProperties = try decodeSurfaceProperties(root["surfaceProperties"])
-    let components = try decodeComponents(root["components"])
-    let functions = try decodeFunctions(root["functions"])
+    let components = try decodeNamedList(
+      root["components"],
+      section: "components",
+      decodeItem: decodeComponent
+    )
+    let functions = try decodeNamedList(
+      root["functions"],
+      section: "functions",
+      decodeItem: decodeFunction
+    )
 
     let model = CatalogModel(
-      schemaURI: schemaURI,
       formatVersion: formatVersion,
       catalogID: catalogID,
       protocolVersion: protocolVersion,
-      title: title,
-      description: description,
-      instructions: instructions,
-      metadata: metadata,
+      title: try reader.optionalString("title"),
+      description: try reader.optionalString("description"),
+      instructions: try reader.optionalString("instructions"),
+      metadata: try decodeOptionalMetadata(root["metadata"], pathPrefix: "metadata"),
       types: types,
       surfaceProperties: surfaceProperties,
       components: components,
-      functions: functions
+      functions: functions,
+      schemaURI: try reader.optionalString("$schema")
     )
-    try validateModelRefs(model)
+    try validateModelRefsAndCycles(model)
     return model
   }
 
   // MARK: - Encoding
 
   /// Encodes a canonical ``CatalogModel`` into a Catalog Document `JSONValue`.
-  ///
-  /// - Parameter model: The in-memory catalog model to serialize.
-  /// - Returns: A `formatVersion: "1.0"` Catalog Document `JSONValue`.
-  /// - Throws: ``A2UICatalogError`` if `model` violates Catalog Document invariants or contains an
-  ///   untranslatable ``TypeDefinition/rawJSONSchema(_:)`` fragment.
   public static func encode(_ model: CatalogModel) throws -> JSONValue {
     guard model.formatVersion == supportedFormatVersion else {
       throw A2UICatalogError(
@@ -186,12 +132,10 @@ public enum CatalogDocumentCodec {
     guard !model.catalogID.isEmpty else {
       throw A2UICatalogError("Catalog Document 'catalogId' must be a non-empty string.")
     }
-    try validateModelForEncoding(model)
+    try validateModel(model)
 
     var root: OrderedDictionary<String, JSONValue> = [:]
-    if let schemaURI = model.schemaURI {
-      root["$schema"] = .string(schemaURI)
-    }
+    if let schemaURI = model.schemaURI { root["$schema"] = .string(schemaURI) }
     root["formatVersion"] = .string(model.formatVersion)
     root["catalogId"] = .string(model.catalogID)
     if let protocolVersion = model.protocolVersion {
@@ -203,23 +147,19 @@ public enum CatalogDocumentCodec {
       }
       root["protocolVersion"] = .string(normalized)
     }
-    if let title = model.title {
-      root["title"] = .string(title)
-    }
-    if let description = model.description {
-      root["description"] = .string(description)
-    }
-    if let instructions = model.instructions {
-      root["instructions"] = .string(instructions)
-    }
+    if let title = model.title { root["title"] = .string(title) }
+    if let description = model.description { root["description"] = .string(description) }
+    if let instructions = model.instructions { root["instructions"] = .string(instructions) }
     if let metadata = model.metadata, !metadata.isEmpty {
       root["metadata"] = try encodeMetadata(metadata, pathPrefix: "metadata")
     }
     if !model.types.isEmpty {
       var typesObj: OrderedDictionary<String, JSONValue> = [:]
       for name in model.types.keys.sorted() {
-        guard let typeDef = model.types[name] else { continue }
-        typesObj[name] = try encodeType(typeDef, allowComponentTypes: false, path: "types.\(name)")
+        if let typeDef = model.types[name] {
+          typesObj[name] = try encodeType(
+            typeDef, allowComponentTypes: false, path: "types.\(name)")
+        }
       }
       root["types"] = .object(typesObj)
     }
@@ -227,19 +167,111 @@ public enum CatalogDocumentCodec {
       root["surfaceProperties"] = try encodeSurfaceProperties(surfaceProperties)
     }
     if !model.components.isEmpty {
-      root["components"] = .array(try model.components.map { try encodeComponent($0) })
+      root["components"] = .array(try model.components.map(encodeComponent))
     }
     if !model.functions.isEmpty {
-      root["functions"] = .array(try model.functions.map { try encodeFunction($0) })
+      root["functions"] = .array(try model.functions.map(encodeFunction))
     }
     return .object(root)
   }
 
   // MARK: - Decode Helpers
 
-  private static func decodeTypes(
-    _ raw: JSONValue?
-  ) throws -> [String: TypeDefinition] {
+  private struct ObjectReader {
+    let object: OrderedDictionary<String, JSONValue>
+    let path: String
+
+    func assertAllowedKeys(_ allowed: Set<String>) throws {
+      for key in object.keys where !allowed.contains(key) {
+        throw A2UICatalogError("Unrecognized property '\(key)' in \(path).")
+      }
+    }
+
+    func requiredString(_ key: String) throws -> String {
+      guard let value = object[key]?.stringValue, !value.isEmpty else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be a non-empty string.")
+      }
+      return value
+    }
+
+    func optionalString(_ key: String) throws -> String? {
+      guard let raw = object[key] else { return nil }
+      guard let value = raw.stringValue else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be a string.")
+      }
+      return value
+    }
+
+    func optionalBool(_ key: String) throws -> Bool? {
+      guard let raw = object[key] else { return nil }
+      guard let value = raw.boolValue else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be a boolean.")
+      }
+      return value
+    }
+
+    func optionalInt(_ key: String) throws -> Int? {
+      guard let raw = object[key] else { return nil }
+      guard let value = raw.intValue else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be an integer.")
+      }
+      return value
+    }
+
+    func optionalNonNegativeInt(_ key: String) throws -> Int? {
+      guard let value = try optionalInt(key) else { return nil }
+      guard value >= 0 else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be a non-negative integer.")
+      }
+      return value
+    }
+
+    func optionalDouble(_ key: String) throws -> Double? {
+      guard let raw = object[key] else { return nil }
+      guard let value = raw.doubleValue, value.isFinite else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be a finite number.")
+      }
+      return value
+    }
+
+    func optionalStringArray(_ key: String) throws -> [String]? {
+      guard let raw = object[key] else { return nil }
+      guard let array = raw.arrayValue else {
+        throw A2UICatalogError("Field '\(path).\(key)' must be an array of strings.")
+      }
+      return try array.enumerated().map { idx, elem in
+        guard let str = elem.stringValue else {
+          throw A2UICatalogError("Field '\(path).\(key)[\(idx)]' must be a string.")
+        }
+        return str
+      }
+    }
+  }
+
+  private static func decodeNamedList<T>(
+    _ raw: JSONValue?,
+    section: String,
+    decodeItem: (OrderedDictionary<String, JSONValue>, String) throws -> (String, T)
+  ) throws -> [T] {
+    guard let raw else { return [] }
+    guard let array = raw.arrayValue else {
+      throw A2UICatalogError("Field '\(section)' must be an array.")
+    }
+    var seen: Set<String> = []
+    return try array.enumerated().map { index, item in
+      let itemPath = "\(section)[\(index)]"
+      guard let object = item.objectValue else {
+        throw A2UICatalogError("\(itemPath) must be an object.")
+      }
+      let (name, value) = try decodeItem(object, itemPath)
+      guard seen.insert(name).inserted else {
+        throw A2UICatalogError("Duplicate entry '\(name)' in \(section).")
+      }
+      return value
+    }
+  }
+
+  private static func decodeTypes(_ raw: JSONValue?) throws -> [String: TypeDefinition] {
     guard let raw else { return [:] }
     guard let object = raw.objectValue else {
       throw A2UICatalogError("Field 'types' must be an object.")
@@ -247,11 +279,7 @@ public enum CatalogDocumentCodec {
     var result: [String: TypeDefinition] = [:]
     for (name, typeValue) in object {
       try assertIdentifier(name, context: "types key")
-      result[name] = try decodeType(
-        typeValue,
-        allowComponentTypes: false,
-        path: "types.\(name)"
-      )
+      result[name] = try decodeType(typeValue, allowComponentTypes: false, path: "types.\(name)")
     }
     return result
   }
@@ -263,69 +291,32 @@ public enum CatalogDocumentCodec {
     guard let object = raw.objectValue else {
       throw A2UICatalogError("Field 'surfaceProperties' must be an object.")
     }
-    try assertAllowedKeys(
-      object,
-      allowed: surfacePropertiesAllowedKeys,
-      context: "surfaceProperties"
-    )
-    let description = try decodeOptionalString(
-      object["description"],
-      field: "surfaceProperties.description"
-    )
-    let properties = try decodeParameterList(
-      object["properties"],
-      allowComponentTypes: false,
-      forbidEnvelopeKeys: false,
-      path: "surfaceProperties.properties"
-    )
-    let additional = try decodeAdditionalProperties(
-      object["additionalProperties"],
-      allowComponentTypes: false,
-      path: "surfaceProperties.additionalProperties"
-    )
+    let reader = ObjectReader(object: object, path: "surfaceProperties")
+    try reader.assertAllowedKeys(surfacePropertiesAllowedKeys)
     return SurfacePropertiesDefinition(
-      description: description,
-      properties: properties,
-      additionalProperties: additional
+      description: try reader.optionalString("description"),
+      properties: try decodeParameterList(
+        object["properties"],
+        allowComponentTypes: false,
+        forbidEnvelopeKeys: false,
+        path: "surfaceProperties.properties"
+      ),
+      additionalProperties: try decodeAdditionalProperties(
+        object["additionalProperties"],
+        allowComponentTypes: false,
+        path: "surfaceProperties.additionalProperties"
+      )
     )
-  }
-
-  private static func decodeComponents(_ raw: JSONValue?) throws -> [ComponentDefinition] {
-    guard let raw else { return [] }
-    guard let array = raw.arrayValue else {
-      throw A2UICatalogError("Field 'components' must be an array.")
-    }
-    var seen: Set<String> = []
-    var result: [ComponentDefinition] = []
-    result.reserveCapacity(array.count)
-    for (index, item) in array.enumerated() {
-      let component = try decodeComponent(item, path: "components[\(index)]")
-      guard seen.insert(component.name).inserted else {
-        throw A2UICatalogError("Duplicate component name '\(component.name)'.")
-      }
-      result.append(component)
-    }
-    return result
   }
 
   private static func decodeComponent(
-    _ raw: JSONValue,
+    _ object: OrderedDictionary<String, JSONValue>,
     path: String
-  ) throws -> ComponentDefinition {
-    guard let object = raw.objectValue else {
-      throw A2UICatalogError("\(path) must be an object.")
-    }
-    try assertAllowedKeys(object, allowed: componentAllowedKeys, context: path)
-
-    guard let name = object["name"]?.stringValue else {
-      throw A2UICatalogError("\(path) is missing required string field 'name'.")
-    }
+  ) throws -> (String, ComponentDefinition) {
+    let reader = ObjectReader(object: object, path: path)
+    try reader.assertAllowedKeys(componentAllowedKeys)
+    let name = try reader.requiredString("name")
     try assertComponentName(name)
-
-    let description = try decodeOptionalString(object["description"], field: "\(path).description")
-    let isCheckable =
-      try decodeOptionalBool(object["checkable"], field: "\(path).checkable")
-      ?? false
     let parameters = try decodeParameterList(
       object["parameters"],
       allowComponentTypes: true,
@@ -337,97 +328,44 @@ public enum CatalogDocumentCodec {
       declaredNames: Set(parameters.map(\.name)),
       path: "\(path).atLeastOneOf"
     )
-    let allowedParents = try decodeOptionalIdentifierList(
-      object["allowedParents"],
-      field: "\(path).allowedParents"
-    )
-    let allowedChildren = try decodeOptionalIdentifierList(
-      object["allowedChildren"],
-      field: "\(path).allowedChildren"
-    )
-    let metadata = try decodeOptionalMetadata(
-      object["metadata"],
-      pathPrefix: "\(path).metadata"
-    )
-    let deprecated =
-      try decodeOptionalBool(object["deprecated"], field: "\(path).deprecated")
-      ?? false
-    let deprecatedReason = try decodeOptionalString(
-      object["deprecatedReason"],
-      field: "\(path).deprecatedReason"
-    )
-
-    return ComponentDefinition(
+    let def = ComponentDefinition(
       name: name,
-      description: description,
-      isCheckable: isCheckable,
+      description: try reader.optionalString("description"),
+      isCheckable: try reader.optionalBool("checkable") ?? false,
       parameters: parameters,
       atLeastOneOf: atLeastOneOf,
-      allowedParents: allowedParents,
-      allowedChildren: allowedChildren,
-      metadata: metadata,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
+      allowedParents: try reader.optionalStringArray("allowedParents"),
+      allowedChildren: try reader.optionalStringArray("allowedChildren"),
+      metadata: try decodeOptionalMetadata(
+        object["metadata"],
+        pathPrefix: "components.\(name).metadata"
+      ),
+      deprecated: try reader.optionalBool("deprecated") ?? false,
+      deprecatedReason: try reader.optionalString("deprecatedReason")
     )
-  }
-
-  private static func decodeFunctions(_ raw: JSONValue?) throws -> [FunctionDefinition] {
-    guard let raw else { return [] }
-    guard let array = raw.arrayValue else {
-      throw A2UICatalogError("Field 'functions' must be an array.")
-    }
-    var seen: Set<String> = []
-    var result: [FunctionDefinition] = []
-    result.reserveCapacity(array.count)
-    for (index, item) in array.enumerated() {
-      let function = try decodeFunction(item, path: "functions[\(index)]")
-      guard seen.insert(function.name).inserted else {
-        throw A2UICatalogError("Duplicate function name '\(function.name)'.")
-      }
-      result.append(function)
-    }
-    return result
+    return (name, def)
   }
 
   private static func decodeFunction(
-    _ raw: JSONValue,
+    _ object: OrderedDictionary<String, JSONValue>,
     path: String
-  ) throws -> FunctionDefinition {
-    guard let object = raw.objectValue else {
-      throw A2UICatalogError("\(path) must be an object.")
-    }
-    try assertAllowedKeys(object, allowed: functionAllowedKeys, context: path)
-
-    guard let name = object["name"]?.stringValue else {
-      throw A2UICatalogError("\(path) is missing required string field 'name'.")
-    }
+  ) throws -> (String, FunctionDefinition) {
+    let reader = ObjectReader(object: object, path: path)
+    try reader.assertAllowedKeys(functionAllowedKeys)
+    let name = try reader.requiredString("name")
     try assertFunctionName(name)
-
-    guard let rawReturnType = object["returnType"] else {
-      throw A2UICatalogError("\(path) ('\(name)') is missing required field 'returnType'.")
-    }
-    let returnType = try decodeReturnType(rawReturnType, path: "\(path).returnType")
-
-    let description = try decodeOptionalString(object["description"], field: "\(path).description")
+    let returnType = try decodeReturnType(object["returnType"], path: "\(path).returnType")
+    let callersRaw = try reader.optionalString("allowedCallers")
     let allowedCallers: AllowedCallers
-    if let rawCallers = object["allowedCallers"] {
-      guard let callersStr = rawCallers.stringValue,
-        let parsed = AllowedCallers(rawValue: callersStr)
-      else {
-        throw A2UICatalogError(
-          "\(path).allowedCallers must be 'rendererOnly', 'agentOnly', or 'rendererOrAgent'."
-        )
+    if let callersRaw {
+      guard let parsed = AllowedCallers(rawValue: callersRaw) else {
+        throw A2UICatalogError("Invalid allowedCallers '\(callersRaw)' at \(path).")
       }
       allowedCallers = parsed
     } else {
       allowedCallers = .rendererOnly
     }
-
-    let requiresUserActivation =
-      try decodeOptionalBool(
-        object["requiresUserActivation"],
-        field: "\(path).requiresUserActivation"
-      ) ?? false
+    let requiresUserActivation = try reader.optionalBool("requiresUserActivation") ?? false
     let parameters = try decodeParameterList(
       object["parameters"],
       allowComponentTypes: false,
@@ -439,67 +377,51 @@ public enum CatalogDocumentCodec {
       declaredNames: Set(parameters.map(\.name)),
       path: "\(path).atLeastOneOf"
     )
-    let additionalParameters = try decodeAdditionalProperties(
-      object["additionalParameters"],
-      allowComponentTypes: false,
-      path: "\(path).additionalParameters"
-    )
-    let deprecated =
-      try decodeOptionalBool(object["deprecated"], field: "\(path).deprecated")
-      ?? false
-    let deprecatedReason = try decodeOptionalString(
-      object["deprecatedReason"],
-      field: "\(path).deprecatedReason"
-    )
-
-    let definition = FunctionDefinition(
+    let def = FunctionDefinition(
       name: name,
-      description: description,
+      description: try reader.optionalString("description"),
       returnType: returnType,
       allowedCallers: allowedCallers,
       requiresUserActivation: requiresUserActivation,
       parameters: parameters,
       atLeastOneOf: atLeastOneOf,
-      additionalParameters: additionalParameters,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
+      additionalParameters: try decodeAdditionalProperties(
+        object["additionalParameters"],
+        allowComponentTypes: false,
+        path: "\(path).additionalParameters"
+      ),
+      deprecated: try reader.optionalBool("deprecated") ?? false,
+      deprecatedReason: try reader.optionalString("deprecatedReason")
     )
-    try definition.validateCallerConstraints()
-    return definition
+    try def.validateCallerConstraints()
+    return (name, def)
   }
 
   private static func decodeReturnType(
-    _ raw: JSONValue,
+    _ raw: JSONValue?,
     path: String
   ) throws -> FunctionReturnDefinition {
+    guard let raw else {
+      throw A2UICatalogError("Missing required field '\(path)'.")
+    }
     if let shorthand = raw.stringValue {
-      switch shorthand {
-      case "string": return .string
-      case "number": return .number
-      case "integer": return .integer
-      case "boolean": return .boolean
-      case "array": return .array
-      case "object": return .object
-      case "validationResult": return .validationResult
-      case "any": return .any
-      case "void": return .void
-      default:
+      guard let parsed = parseReturnShorthand(shorthand) else {
         throw A2UICatalogError("Invalid shorthand returnType '\(shorthand)' at \(path).")
       }
+      return parsed
     }
     guard let object = raw.objectValue, let kind = object["type"]?.stringValue else {
       throw A2UICatalogError("\(path) must be a returnType string or type object.")
     }
     if kind == "void" || kind == "validationResult" {
-      try assertAllowedKeys(object, allowed: ["type", "description"], context: path)
-      let desc = try decodeOptionalString(object["description"], field: "\(path).description")
+      let reader = ObjectReader(object: object, path: path)
+      try reader.assertAllowedKeys(["type", "description"])
       return FunctionReturnDefinition(
         kind: kind == "void" ? .void : .validationResult,
-        description: desc
+        description: try reader.optionalString("description")
       )
     }
-    let dataType = try decodeType(raw, allowComponentTypes: false, path: path)
-    return .data(dataType)
+    return .data(try decodeType(raw, allowComponentTypes: false, path: path))
   }
 
   private static func decodeParameterList(
@@ -513,16 +435,13 @@ public enum CatalogDocumentCodec {
       throw A2UICatalogError("\(path) must be an array.")
     }
     var seen: Set<String> = []
-    var result: [ParameterDefinition] = []
-    result.reserveCapacity(array.count)
-    for (index, item) in array.enumerated() {
+    return try array.enumerated().map { index, item in
       let itemPath = "\(path)[\(index)]"
       guard let object = item.objectValue else {
         throw A2UICatalogError("\(itemPath) must be an object.")
       }
-      guard let name = object["name"]?.stringValue else {
-        throw A2UICatalogError("\(itemPath) is missing required string field 'name'.")
-      }
+      let reader = ObjectReader(object: object, path: itemPath)
+      let name = try reader.requiredString("name")
       try assertIdentifier(name, context: "\(itemPath).name")
       if forbidEnvelopeKeys && reservedComponentEnvelopeKeys.contains(name) {
         throw A2UICatalogError(
@@ -533,37 +452,21 @@ public enum CatalogDocumentCodec {
       guard seen.insert(name).inserted else {
         throw A2UICatalogError("Duplicate parameter name '\(name)' in \(path).")
       }
-      let required =
-        try decodeOptionalBool(object["required"], field: "\(itemPath).required")
-        ?? false
-      let description = try decodeOptionalString(
-        object["description"],
-        field: "\(itemPath).description"
-      )
-      let deprecated =
-        try decodeOptionalBool(object["deprecated"], field: "\(itemPath).deprecated") ?? false
-      let deprecatedReason = try decodeOptionalString(
-        object["deprecatedReason"],
-        field: "\(itemPath).deprecatedReason"
-      )
       let type = try decodeTypeObject(
         object,
         allowComponentTypes: allowComponentTypes,
         allowParameterKeys: true,
         path: itemPath
       )
-      result.append(
-        ParameterDefinition(
-          name: name,
-          type: type.strippingParameterMetadata(),
-          required: required,
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
+      return ParameterDefinition(
+        name: name,
+        type: type.strippingParameterMetadata(),
+        required: try reader.optionalBool("required") ?? false,
+        description: type.description,
+        deprecated: type.deprecated,
+        deprecatedReason: type.deprecatedReason
       )
     }
-    return result
   }
 
   private static func decodeAdditionalProperties(
@@ -572,10 +475,37 @@ public enum CatalogDocumentCodec {
     path: String
   ) throws -> AdditionalProperties {
     guard let raw else { return .disallowed }
-    if let flag = raw.boolValue {
-      return flag ? .allowed : .disallowed
+    if let boolVal = raw.boolValue {
+      return boolVal ? .allowed : .disallowed
+    }
+    guard raw.objectValue != nil else {
+      throw A2UICatalogError("\(path) must be a boolean or a type definition object.")
     }
     return .typed(try decodeType(raw, allowComponentTypes: allowComponentTypes, path: path))
+  }
+
+  private static func decodeAtLeastOneOf(
+    _ raw: JSONValue?,
+    declaredNames: Set<String>,
+    path: String
+  ) throws -> [[String]] {
+    guard let raw else { return [] }
+    guard let groups = raw.arrayValue, !groups.isEmpty else {
+      throw A2UICatalogError("\(path) must be a non-empty array of parameter name groups.")
+    }
+    let result: [[String]] = try groups.enumerated().map { idx, groupVal in
+      guard let arr = groupVal.arrayValue else {
+        throw A2UICatalogError("\(path)[\(idx)] must be an array of parameter names.")
+      }
+      return try arr.enumerated().map { j, item in
+        guard let name = item.stringValue else {
+          throw A2UICatalogError("\(path)[\(idx)][\(j)] must be a parameter name string.")
+        }
+        return name
+      }
+    }
+    try validateAtLeastOneOf(result, declaredNames: declaredNames, path: path)
+    return result
   }
 
   private static func decodeType(
@@ -600,511 +530,244 @@ public enum CatalogDocumentCodec {
     allowParameterKeys: Bool,
     path: String
   ) throws -> TypeDefinition {
-    guard let kind = object["type"]?.stringValue else {
-      throw A2UICatalogError("\(path) is missing required string field 'type'.")
-    }
-    let description = try decodeOptionalString(object["description"], field: "\(path).description")
-    let deprecated =
-      try decodeOptionalBool(object["deprecated"], field: "\(path).deprecated")
-      ?? false
-    let deprecatedReason = try decodeOptionalString(
-      object["deprecatedReason"],
-      field: "\(path).deprecatedReason"
-    )
-    let extraKeys = allowParameterKeys ? parameterIdentityKeys : []
+    let reader = ObjectReader(object: object, path: path)
+    let kindName = try reader.requiredString("type")
+    let description = try reader.optionalString("description")
+    let deprecated = try reader.optionalBool("deprecated") ?? false
+    let deprecatedReason = try reader.optionalString("deprecatedReason")
+    let extra = allowParameterKeys ? parameterOnlyKeys : []
 
-    switch kind {
+    let kind: TypeDefinition.Kind
+    switch kindName {
     case "string":
-      return try decodeStringType(
-        object,
-        extraKeys: extraKeys,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union([
+          "dynamic", "format", "formats", "pattern", "minLength", "maxLength", "default",
+        ]))
+      if object["format"] != nil && object["formats"] != nil {
+        throw A2UICatalogError("\(path) cannot specify both 'format' and 'formats'.")
+      }
+      let formats: [String]?
+      if let single = try reader.optionalString("format") {
+        formats = [single]
+      } else if let many = try reader.optionalStringArray("formats") {
+        formats = many
+      } else {
+        formats = nil
+      }
+      kind = .string(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        formats: formats,
+        pattern: try reader.optionalString("pattern"),
+        minLength: try reader.optionalNonNegativeInt("minLength"),
+        maxLength: try reader.optionalNonNegativeInt("maxLength"),
+        defaultValue: try reader.optionalString("default")
       )
+
     case "number":
-      return try decodeNumberType(
-        object,
-        extraKeys: extraKeys,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union(["dynamic", "min", "max", "default"]))
+      kind = .number(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        min: try reader.optionalDouble("min"),
+        max: try reader.optionalDouble("max"),
+        defaultValue: try reader.optionalDouble("default")
       )
+
     case "integer":
-      return try decodeIntegerType(
-        object,
-        extraKeys: extraKeys,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union(["dynamic", "min", "max", "default"]))
+      kind = .integer(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        min: try reader.optionalInt("min"),
+        max: try reader.optionalInt("max"),
+        defaultValue: try reader.optionalInt("default")
       )
+
     case "boolean":
-      try assertAllowedKeys(
-        object,
-        allowed: baseTypeKeys.union(extraKeys).union(["dynamic", "default"]),
-        context: path
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra).union(["dynamic", "default"]))
+      kind = .boolean(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        defaultValue: try reader.optionalBool("default")
       )
-      let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-      let defaultValue = try decodeOptionalBool(object["default"], field: "\(path).default")
-      return .boolean(
-        dynamic: dynamic,
-        defaultValue: defaultValue,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+
     case "enum":
-      return try decodeEnumType(
-        object,
-        extraKeys: extraKeys,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union(["values", "valueType", "dynamic", "default"]))
+      guard let values = object["values"]?.arrayValue, !values.isEmpty else {
+        throw A2UICatalogError("\(path).values must be a non-empty array.")
+      }
+      let rawValueType = try reader.optionalString("valueType") ?? "string"
+      guard let valueType = EnumValueType(rawValue: rawValueType) else {
+        throw A2UICatalogError("Invalid valueType '\(rawValueType)' at \(path).")
+      }
+      kind = .enum(
+        values: values,
+        valueType: valueType,
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        defaultValue: object["default"]
       )
+
     case "const":
-      try assertAllowedKeys(
-        object,
-        allowed: baseTypeKeys.union(extraKeys).union(["value"]),
-        context: path
-      )
-      guard let value = object["value"], isValidConstValue(value) else {
-        throw A2UICatalogError(
-          "\(path).value must be a string, number, boolean, or null."
-        )
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra).union(["value"]))
+      guard let value = object["value"] else {
+        throw A2UICatalogError("\(path) of type 'const' is missing required field 'value'.")
       }
-      return .const(
-        value: value,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+      kind = .const(value: value)
+
     case "any":
-      try assertAllowedKeys(
-        object,
-        allowed: baseTypeKeys.union(extraKeys).union(["dynamic", "nullable", "default"]),
-        context: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union(["dynamic", "nullable", "default"]))
+      kind = .any(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        nullable: try reader.optionalBool("nullable") ?? false,
+        defaultValue: object["default"]
       )
-      let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-      let nullable = try decodeOptionalBool(object["nullable"], field: "\(path).nullable") ?? false
-      return .any(
-        dynamic: dynamic,
-        nullable: nullable,
-        defaultValue: object["default"],
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+
     case "object":
-      return try decodeObjectType(
-        object,
-        extraKeys: extraKeys,
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union([
+          "dynamic", "properties", "additionalProperties", "atLeastOneOf", "default",
+        ]))
+      let properties = try decodeParameterList(
+        object["properties"],
         allowComponentTypes: allowComponentTypes,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+        forbidEnvelopeKeys: false,
+        path: "\(path).properties"
       )
+      let additional = try decodeAdditionalProperties(
+        object["additionalProperties"],
+        allowComponentTypes: allowComponentTypes,
+        path: "\(path).additionalProperties"
+      )
+      let atLeastOneOf = try decodeAtLeastOneOf(
+        object["atLeastOneOf"],
+        declaredNames: Set(properties.map(\.name)),
+        path: "\(path).atLeastOneOf"
+      )
+      let defaultValue: [String: JSONValue]?
+      if let rawDefault = object["default"] {
+        guard let dict = rawDefault.dictionaryValue else {
+          throw A2UICatalogError("\(path).default must be an object.")
+        }
+        defaultValue = dict
+      } else {
+        defaultValue = nil
+      }
+      kind = .object(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        properties: properties,
+        additionalProperties: additional,
+        atLeastOneOf: atLeastOneOf,
+        defaultValue: defaultValue
+      )
+
     case "array":
-      return try decodeArrayType(
-        object,
-        extraKeys: extraKeys,
-        allowComponentTypes: allowComponentTypes,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union([
+          "dynamic", "items", "minItems", "maxItems", "uniqueItems", "default",
+        ]))
+      let items = try object["items"].map {
+        try decodeType($0, allowComponentTypes: allowComponentTypes, path: "\(path).items")
+      }
+      let defaultValue: [JSONValue]?
+      if let rawDefault = object["default"] {
+        guard let array = rawDefault.arrayValue else {
+          throw A2UICatalogError("\(path).default must be an array.")
+        }
+        defaultValue = array
+      } else {
+        defaultValue = nil
+      }
+      kind = .array(
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        items: items,
+        minItems: try reader.optionalNonNegativeInt("minItems"),
+        maxItems: try reader.optionalNonNegativeInt("maxItems"),
+        uniqueItems: try reader.optionalBool("uniqueItems") ?? false,
+        defaultValue: defaultValue
       )
+
     case "union":
-      return try decodeUnionType(
-        object,
-        extraKeys: extraKeys,
-        allowComponentTypes: allowComponentTypes,
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason,
-        path: path
+      try reader.assertAllowedKeys(
+        baseTypeKeys.union(extra).union(["variants", "exclusive", "dynamic", "default"]))
+      guard let rawVariants = object["variants"]?.arrayValue, rawVariants.count >= 2 else {
+        throw A2UICatalogError("\(path).variants must be an array with at least 2 variants.")
+      }
+      let variants = try rawVariants.enumerated().map { idx, variantVal in
+        try decodeType(
+          variantVal,
+          allowComponentTypes: allowComponentTypes,
+          path: "\(path).variants[\(idx)]"
+        )
+      }
+      kind = .union(
+        variants: variants,
+        exclusive: try reader.optionalBool("exclusive") ?? false,
+        dynamic: try reader.optionalBool("dynamic") ?? false,
+        defaultValue: object["default"]
       )
+
     case "dataBinding":
-      try assertAllowedKeys(object, allowed: baseTypeKeys.union(extraKeys), context: path)
-      return .dataBinding(
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra))
+      kind = .dataBinding
+
     case "functionCall":
-      try assertAllowedKeys(object, allowed: baseTypeKeys.union(extraKeys), context: path)
-      return .functionCall(
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra))
+      kind = .functionCall
+
     case "ref":
-      try assertAllowedKeys(
-        object,
-        allowed: baseTypeKeys.union(extraKeys).union(["ref", "default"]),
-        context: path
-      )
-      guard let refName = object["ref"]?.stringValue else {
-        throw A2UICatalogError("\(path) is missing required string field 'ref'.")
-      }
-      try assertIdentifier(refName, context: "\(path).ref")
-      return .ref(
-        refName,
-        defaultValue: object["default"],
-        description: description,
-        deprecated: deprecated,
-        deprecatedReason: deprecatedReason
-      )
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra).union(["ref", "default"]))
+      let target = try reader.requiredString("ref")
+      try assertIdentifier(target, context: "\(path).ref")
+      kind = .ref(target, defaultValue: object["default"])
+
     case "child", "childList", "action", "checkRule", "accessibility":
-      guard allowComponentTypes else {
-        throw A2UICatalogError(
-          "Component-only type '\(kind)' is not allowed in data-only scope at \(path)."
-        )
+      try assertComponentTypeAllowed(kindName, allowComponentTypes: allowComponentTypes, path: path)
+      try reader.assertAllowedKeys(baseTypeKeys.union(extra))
+      switch kindName {
+      case "child": kind = .child
+      case "childList": kind = .childList
+      case "action": kind = .action
+      case "checkRule": kind = .checkRule
+      default: kind = .accessibility
       }
-      try assertAllowedKeys(object, allowed: baseTypeKeys.union(extraKeys), context: path)
-      switch kind {
-      case "child":
-        return .child(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
-      case "childList":
-        return .childList(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
-      case "action":
-        return .action(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
-      case "checkRule":
-        return .checkRule(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
-      default:
-        return .accessibility(
-          description: description,
-          deprecated: deprecated,
-          deprecatedReason: deprecatedReason
-        )
-      }
+
     default:
-      throw A2UICatalogError("Unknown type variant '\(kind)' at \(path).")
+      throw A2UICatalogError("Unknown type '\(kindName)' at \(path).")
     }
-  }
 
-  private static func decodeStringType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union([
-        "dynamic", "format", "pattern", "minLength", "maxLength", "default",
-      ]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let formats = try decodeOptionalFormats(object["format"], path: "\(path).format")
-    let pattern = try decodeOptionalString(object["pattern"], field: "\(path).pattern")
-    let minLength = try decodeOptionalNonNegativeInt(
-      object["minLength"],
-      field: "\(path).minLength"
-    )
-    let maxLength = try decodeOptionalNonNegativeInt(
-      object["maxLength"],
-      field: "\(path).maxLength"
-    )
-    let defaultValue = try decodeOptionalString(object["default"], field: "\(path).default")
-    return .string(
-      dynamic: dynamic,
-      formats: formats,
-      pattern: pattern,
-      minLength: minLength,
-      maxLength: maxLength,
-      defaultValue: defaultValue,
+    let typeDef = TypeDefinition(
+      kind: kind,
       description: description,
       deprecated: deprecated,
       deprecatedReason: deprecatedReason
     )
-  }
-
-  private static func decodeNumberType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union(["dynamic", "min", "max", "default"]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let min = try decodeOptionalDouble(object["min"], field: "\(path).min")
-    let max = try decodeOptionalDouble(object["max"], field: "\(path).max")
-    let defaultValue = try decodeOptionalDouble(object["default"], field: "\(path).default")
-    return .number(
-      dynamic: dynamic,
-      min: min,
-      max: max,
-      defaultValue: defaultValue,
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
-  }
-
-  private static func decodeIntegerType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union(["dynamic", "min", "max", "default"]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let min = try decodeOptionalInt(object["min"], field: "\(path).min")
-    let max = try decodeOptionalInt(object["max"], field: "\(path).max")
-    let defaultValue = try decodeOptionalInt(object["default"], field: "\(path).default")
-    return .integer(
-      dynamic: dynamic,
-      min: min,
-      max: max,
-      defaultValue: defaultValue,
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
-  }
-
-  private static func decodeEnumType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union([
-        "dynamic", "valueType", "values", "default",
-      ]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let valueType: EnumValueType
-    if let rawValueType = object["valueType"] {
-      guard let str = rawValueType.stringValue, let parsed = EnumValueType(rawValue: str) else {
-        throw A2UICatalogError(
-          "\(path).valueType must be 'string', 'number', or 'boolean'."
-        )
-      }
-      valueType = parsed
-    } else {
-      valueType = .string
-    }
-    guard let values = object["values"]?.arrayValue, !values.isEmpty else {
-      throw A2UICatalogError("\(path).values must be a non-empty array.")
-    }
-    try validateEnumValues(values, valueType: valueType, path: "\(path).values")
-    if let defaultValue = object["default"], !matchesEnumValueType(defaultValue, valueType) {
-      throw A2UICatalogError(
-        "\(path).default does not match valueType '\(valueType.rawValue)'."
-      )
-    }
-    return .enum(
-      values: values,
-      valueType: valueType,
-      dynamic: dynamic,
-      defaultValue: object["default"],
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
-  }
-
-  private static func decodeObjectType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    allowComponentTypes: Bool,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union([
-        "dynamic", "properties", "additionalProperties", "atLeastOneOf", "default",
-      ]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let properties = try decodeParameterList(
-      object["properties"],
+    try validateTypeSemantics(
+      typeDef,
       allowComponentTypes: allowComponentTypes,
-      forbidEnvelopeKeys: false,
-      path: "\(path).properties"
+      path: path
     )
-    let additional = try decodeAdditionalProperties(
-      object["additionalProperties"],
-      allowComponentTypes: allowComponentTypes,
-      path: "\(path).additionalProperties"
-    )
-    let atLeastOneOf = try decodeAtLeastOneOf(
-      object["atLeastOneOf"],
-      declaredNames: Set(properties.map(\.name)),
-      path: "\(path).atLeastOneOf"
-    )
-    let defaultValue: [String: JSONValue]?
-    if let rawDefault = object["default"] {
-      guard let dict = rawDefault.dictionaryValue else {
-        throw A2UICatalogError("\(path).default must be an object.")
-      }
-      defaultValue = dict
-    } else {
-      defaultValue = nil
-    }
-    return .object(
-      dynamic: dynamic,
-      properties: properties,
-      additionalProperties: additional,
-      atLeastOneOf: atLeastOneOf,
-      defaultValue: defaultValue,
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
-  }
-
-  private static func decodeArrayType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    allowComponentTypes: Bool,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union([
-        "dynamic", "items", "minItems", "maxItems", "uniqueItems", "default",
-      ]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let items = try object["items"].map {
-      try decodeType($0, allowComponentTypes: allowComponentTypes, path: "\(path).items")
-    }
-    let minItems = try decodeOptionalNonNegativeInt(object["minItems"], field: "\(path).minItems")
-    let maxItems = try decodeOptionalNonNegativeInt(object["maxItems"], field: "\(path).maxItems")
-    let uniqueItems =
-      try decodeOptionalBool(object["uniqueItems"], field: "\(path).uniqueItems") ?? false
-    let defaultValue: [JSONValue]?
-    if let rawDefault = object["default"] {
-      guard let array = rawDefault.arrayValue else {
-        throw A2UICatalogError("\(path).default must be an array.")
-      }
-      defaultValue = array
-    } else {
-      defaultValue = nil
-    }
-    return .array(
-      dynamic: dynamic,
-      items: items,
-      minItems: minItems,
-      maxItems: maxItems,
-      uniqueItems: uniqueItems,
-      defaultValue: defaultValue,
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
-  }
-
-  private static func decodeUnionType(
-    _ object: OrderedDictionary<String, JSONValue>,
-    extraKeys: Set<String>,
-    allowComponentTypes: Bool,
-    description: String?,
-    deprecated: Bool,
-    deprecatedReason: String?,
-    path: String
-  ) throws -> TypeDefinition {
-    try assertAllowedKeys(
-      object,
-      allowed: baseTypeKeys.union(extraKeys).union([
-        "dynamic", "exclusive", "variants", "default",
-      ]),
-      context: path
-    )
-    let dynamic = try decodeOptionalBool(object["dynamic"], field: "\(path).dynamic") ?? false
-    let exclusive = try decodeOptionalBool(object["exclusive"], field: "\(path).exclusive") ?? true
-    guard let rawVariants = object["variants"]?.arrayValue, rawVariants.count >= 2 else {
-      throw A2UICatalogError("\(path).variants must be an array with at least 2 variants.")
-    }
-    let variants = try rawVariants.enumerated().map { index, item in
-      try decodeType(
-        item,
-        allowComponentTypes: allowComponentTypes,
-        path: "\(path).variants[\(index)]"
-      )
-    }
-    return .union(
-      variants: variants,
-      exclusive: exclusive,
-      dynamic: dynamic,
-      defaultValue: object["default"],
-      description: description,
-      deprecated: deprecated,
-      deprecatedReason: deprecatedReason
-    )
+    return typeDef
   }
 
   // MARK: - Encode Helpers
 
-  private static func encodeSurfaceProperties(
-    _ def: SurfacePropertiesDefinition
-  ) throws -> JSONValue {
+  private static func encodeSurfaceProperties(_ def: SurfacePropertiesDefinition) throws
+    -> JSONValue
+  {
     guard def.rawJSONSchema == nil else {
       throw A2UICatalogError(
         "Cannot encode untranslatable raw JSON Schema in surfaceProperties to a Catalog Document."
       )
     }
     var obj: OrderedDictionary<String, JSONValue> = [:]
-    if let description = def.description {
-      obj["description"] = .string(description)
-    }
+    if let description = def.description { obj["description"] = .string(description) }
     if !def.properties.isEmpty {
       obj["properties"] = .array(
         try def.properties.map {
           try encodeParameter($0, allowComponentTypes: false, path: "surfaceProperties.\($0.name)")
-        }
-      )
+        })
     }
     if def.additionalProperties != .disallowed {
       obj["additionalProperties"] = try encodeAdditionalProperties(
@@ -1124,41 +787,27 @@ public enum CatalogDocumentCodec {
       )
     }
     var obj: OrderedDictionary<String, JSONValue> = ["name": .string(def.name)]
-    if let description = def.description {
-      obj["description"] = .string(description)
-    }
-    if def.isCheckable {
-      obj["checkable"] = .boolean(true)
-    }
+    if let description = def.description { obj["description"] = .string(description) }
+    if def.isCheckable { obj["checkable"] = .boolean(true) }
     if !def.parameters.isEmpty {
       obj["parameters"] = .array(
         try def.parameters.map {
           try encodeParameter(
-            $0,
-            allowComponentTypes: true,
-            path: "components.\(def.name).\($0.name)"
-          )
-        }
-      )
+            $0, allowComponentTypes: true, path: "components.\(def.name).\($0.name)")
+        })
     }
-    if !def.atLeastOneOf.isEmpty {
-      obj["atLeastOneOf"] = encodeAtLeastOneOf(def.atLeastOneOf)
+    if !def.atLeastOneOf.isEmpty { obj["atLeastOneOf"] = encodeAtLeastOneOf(def.atLeastOneOf) }
+    if let parents = def.allowedParents {
+      obj["allowedParents"] = .array(parents.map(JSONValue.string))
     }
-    if let allowedParents = def.allowedParents {
-      obj["allowedParents"] = .array(allowedParents.map { .string($0) })
-    }
-    if let allowedChildren = def.allowedChildren {
-      obj["allowedChildren"] = .array(allowedChildren.map { .string($0) })
+    if let children = def.allowedChildren {
+      obj["allowedChildren"] = .array(children.map(JSONValue.string))
     }
     if let metadata = def.metadata, !metadata.isEmpty {
       obj["metadata"] = try encodeMetadata(metadata, pathPrefix: "components.\(def.name).metadata")
     }
-    if def.deprecated {
-      obj["deprecated"] = .boolean(true)
-    }
-    if let reason = def.deprecatedReason {
-      obj["deprecatedReason"] = .string(reason)
-    }
+    if def.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = def.deprecatedReason { obj["deprecatedReason"] = .string(reason) }
     return .object(obj)
   }
 
@@ -1170,9 +819,7 @@ public enum CatalogDocumentCodec {
       )
     }
     var obj: OrderedDictionary<String, JSONValue> = ["name": .string(def.name)]
-    if let description = def.description {
-      obj["description"] = .string(description)
-    }
+    if let description = def.description { obj["description"] = .string(description) }
     obj["returnType"] = try encodeReturnType(
       def.returnType,
       path: "functions.\(def.name).returnType"
@@ -1180,23 +827,15 @@ public enum CatalogDocumentCodec {
     if def.allowedCallers != .rendererOnly {
       obj["allowedCallers"] = .string(def.allowedCallers.rawValue)
     }
-    if def.requiresUserActivation {
-      obj["requiresUserActivation"] = .boolean(true)
-    }
+    if def.requiresUserActivation { obj["requiresUserActivation"] = .boolean(true) }
     if !def.parameters.isEmpty {
       obj["parameters"] = .array(
         try def.parameters.map {
           try encodeParameter(
-            $0,
-            allowComponentTypes: false,
-            path: "functions.\(def.name).\($0.name)"
-          )
-        }
-      )
+            $0, allowComponentTypes: false, path: "functions.\(def.name).\($0.name)")
+        })
     }
-    if !def.atLeastOneOf.isEmpty {
-      obj["atLeastOneOf"] = encodeAtLeastOneOf(def.atLeastOneOf)
-    }
+    if !def.atLeastOneOf.isEmpty { obj["atLeastOneOf"] = encodeAtLeastOneOf(def.atLeastOneOf) }
     if def.additionalParameters != .disallowed {
       obj["additionalParameters"] = try encodeAdditionalProperties(
         def.additionalParameters,
@@ -1204,12 +843,8 @@ public enum CatalogDocumentCodec {
         path: "functions.\(def.name).additionalParameters"
       )
     }
-    if def.deprecated {
-      obj["deprecated"] = .boolean(true)
-    }
-    if let reason = def.deprecatedReason {
-      obj["deprecatedReason"] = .string(reason)
-    }
+    if def.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = def.deprecatedReason { obj["deprecatedReason"] = .string(reason) }
     return .object(obj)
   }
 
@@ -1221,20 +856,15 @@ public enum CatalogDocumentCodec {
       return .string(shorthand)
     }
     switch def.kind {
-    case .void:
-      var obj: OrderedDictionary<String, JSONValue> = ["type": .string("void")]
-      if let description = def.description {
-        obj["description"] = .string(description)
-      }
+    case .void, .validationResult:
+      var obj: OrderedDictionary<String, JSONValue> = [
+        "type": .string(def.kind == .void ? "void" : "validationResult")
+      ]
+      if let description = def.description { obj["description"] = .string(description) }
       return .object(obj)
-    case .validationResult:
-      var obj: OrderedDictionary<String, JSONValue> = ["type": .string("validationResult")]
-      if let description = def.description {
-        obj["description"] = .string(description)
-      }
-      return .object(obj)
-    case .data(let type):
-      return try encodeType(type, allowComponentTypes: false, path: path)
+    case .data:
+      guard let dataType = def.effectiveDataType else { return .string("any") }
+      return try encodeType(dataType, allowComponentTypes: false, path: path)
     }
   }
 
@@ -1243,28 +873,22 @@ public enum CatalogDocumentCodec {
     allowComponentTypes: Bool,
     path: String
   ) throws -> JSONValue {
-    var obj: OrderedDictionary<String, JSONValue> = ["name": .string(param.name)]
-    let typeVal = try encodeType(
-      param.type.strippingParameterMetadata(),
+    let encodedType = try encodeType(
+      param.type,
       allowComponentTypes: allowComponentTypes,
       path: path
     )
-    guard let typeObj = typeVal.objectValue else {
-      throw A2UICatalogError("Encoded type at \(path) must be an object.")
-    }
-    for (k, v) in typeObj {
+    guard let typeObj = encodedType.objectValue else { return encodedType }
+    var obj: OrderedDictionary<String, JSONValue> = ["name": .string(param.name)]
+    for (k, v) in typeObj where k != "description" && k != "deprecated" && k != "deprecatedReason" {
       obj[k] = v
     }
-    if param.required {
-      obj["required"] = .boolean(true)
-    }
-    if let description = param.effectiveDescription {
+    if param.required { obj["required"] = .boolean(true) }
+    if let description = param.description ?? param.type.description {
       obj["description"] = .string(description)
     }
-    if param.isEffectivelyDeprecated {
-      obj["deprecated"] = .boolean(true)
-    }
-    if let reason = param.effectiveDeprecatedReason {
+    if param.deprecated || param.type.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = param.deprecatedReason ?? param.type.deprecatedReason {
       obj["deprecatedReason"] = .string(reason)
     }
     return .object(obj)
@@ -1276,10 +900,8 @@ public enum CatalogDocumentCodec {
     path: String
   ) throws -> JSONValue {
     switch additional {
-    case .disallowed:
-      return .boolean(false)
-    case .allowed:
-      return .boolean(true)
+    case .disallowed: return .boolean(false)
+    case .allowed: return .boolean(true)
     case .typed(let type):
       return try encodeType(type, allowComponentTypes: allowComponentTypes, path: path)
     }
@@ -1291,247 +913,141 @@ public enum CatalogDocumentCodec {
     path: String
   ) throws -> JSONValue {
     var obj: OrderedDictionary<String, JSONValue> = [:]
-    switch type {
-    case .string(
-      let dynamic, let formats, let pattern, let minLength, let maxLength,
-      let defaultValue, let description, let deprecated, let deprecatedReason):
+    switch type.kind {
+    case .string(let dynamic, let formats, let pattern, let minL, let maxL, let defVal):
       obj["type"] = .string("string")
       if dynamic { obj["dynamic"] = .boolean(true) }
       if let formats, !formats.isEmpty {
-        obj["format"] =
-          formats.count == 1 ? .string(formats[0]) : .array(formats.map { .string($0) })
+        if formats.count == 1 {
+          obj["format"] = .string(formats[0])
+        } else {
+          obj["formats"] = .array(formats.map(JSONValue.string))
+        }
       }
       if let pattern { obj["pattern"] = .string(pattern) }
-      if let minLength { obj["minLength"] = .integer(minLength) }
-      if let maxLength { obj["maxLength"] = .integer(maxLength) }
-      if let defaultValue { obj["default"] = .string(defaultValue) }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let minL { obj["minLength"] = .integer(minL) }
+      if let maxL { obj["maxLength"] = .integer(maxL) }
+      if let defVal { obj["default"] = .string(defVal) }
 
-    case .number(
-      let dynamic, let min, let max, let defaultValue, let description, let deprecated,
-      let deprecatedReason):
+    case .number(let dynamic, let minV, let maxV, let defVal):
       obj["type"] = .string("number")
       if dynamic { obj["dynamic"] = .boolean(true) }
-      if let min { obj["min"] = encodeNumber(min) }
-      if let max { obj["max"] = encodeNumber(max) }
-      if let defaultValue { obj["default"] = encodeNumber(defaultValue) }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let minV { obj["min"] = encodeNumber(minV) }
+      if let maxV { obj["max"] = encodeNumber(maxV) }
+      if let defVal { obj["default"] = encodeNumber(defVal) }
 
-    case .integer(
-      let dynamic, let min, let max, let defaultValue, let description, let deprecated,
-      let deprecatedReason):
+    case .integer(let dynamic, let minV, let maxV, let defVal):
       obj["type"] = .string("integer")
       if dynamic { obj["dynamic"] = .boolean(true) }
-      if let min { obj["min"] = .integer(min) }
-      if let max { obj["max"] = .integer(max) }
-      if let defaultValue { obj["default"] = .integer(defaultValue) }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let minV { obj["min"] = .integer(minV) }
+      if let maxV { obj["max"] = .integer(maxV) }
+      if let defVal { obj["default"] = .integer(defVal) }
 
-    case .boolean(
-      let dynamic, let defaultValue, let description, let deprecated,
-      let deprecatedReason):
+    case .boolean(let dynamic, let defVal):
       obj["type"] = .string("boolean")
       if dynamic { obj["dynamic"] = .boolean(true) }
-      if let defaultValue { obj["default"] = .boolean(defaultValue) }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let defVal { obj["default"] = .boolean(defVal) }
 
-    case .enum(
-      let values, let valueType, let dynamic, let defaultValue, let description,
-      let deprecated, let deprecatedReason):
+    case .enum(let values, let valueType, let dynamic, let defVal):
       obj["type"] = .string("enum")
-      if dynamic { obj["dynamic"] = .boolean(true) }
-      if valueType != .string { obj["valueType"] = .string(valueType.rawValue) }
       obj["values"] = .array(values)
-      if let defaultValue { obj["default"] = defaultValue }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if valueType != .string { obj["valueType"] = .string(valueType.rawValue) }
+      if dynamic { obj["dynamic"] = .boolean(true) }
+      if let defVal { obj["default"] = defVal }
 
-    case .const(let value, let description, let deprecated, let deprecatedReason):
+    case .const(let value):
       obj["type"] = .string("const")
       obj["value"] = value
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
 
-    case .any(
-      let dynamic, let nullable, let defaultValue, let description, let deprecated,
-      let deprecatedReason):
+    case .any(let dynamic, let nullable, let defVal):
       obj["type"] = .string("any")
       if dynamic { obj["dynamic"] = .boolean(true) }
       if nullable { obj["nullable"] = .boolean(true) }
-      if let defaultValue { obj["default"] = defaultValue }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let defVal { obj["default"] = defVal }
 
-    case .object(
-      let dynamic, let properties, let additionalProperties, let atLeastOneOf,
-      let defaultValue, let description, let deprecated, let deprecatedReason):
+    case .object(let dynamic, let properties, let additional, let atLeastOneOf, let defVal):
       obj["type"] = .string("object")
       if dynamic { obj["dynamic"] = .boolean(true) }
       if !properties.isEmpty {
         obj["properties"] = .array(
           try properties.map {
             try encodeParameter(
-              $0,
-              allowComponentTypes: allowComponentTypes,
-              path: "\(path).\($0.name)"
-            )
-          }
-        )
+              $0, allowComponentTypes: allowComponentTypes, path: "\(path).\($0.name)")
+          })
       }
-      if additionalProperties != .disallowed {
+      if additional != .disallowed {
         obj["additionalProperties"] = try encodeAdditionalProperties(
-          additionalProperties,
+          additional,
           allowComponentTypes: allowComponentTypes,
           path: "\(path).additionalProperties"
         )
       }
-      if !atLeastOneOf.isEmpty {
-        obj["atLeastOneOf"] = encodeAtLeastOneOf(atLeastOneOf)
-      }
-      if let defaultValue {
+      if !atLeastOneOf.isEmpty { obj["atLeastOneOf"] = encodeAtLeastOneOf(atLeastOneOf) }
+      if let defVal {
         var ordered: OrderedDictionary<String, JSONValue> = [:]
-        for key in defaultValue.keys.sorted() {
-          ordered[key] = defaultValue[key]
-        }
+        for key in defVal.keys.sorted() { ordered[key] = defVal[key] }
         obj["default"] = .object(ordered)
       }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
 
-    case .array(
-      let dynamic, let items, let minItems, let maxItems, let uniqueItems,
-      let defaultValue, let description, let deprecated, let deprecatedReason):
+    case .array(let dynamic, let items, let minI, let maxI, let unique, let defVal):
       obj["type"] = .string("array")
       if dynamic { obj["dynamic"] = .boolean(true) }
       if let items {
         obj["items"] = try encodeType(
-          items,
-          allowComponentTypes: allowComponentTypes,
-          path: "\(path).items"
-        )
+          items, allowComponentTypes: allowComponentTypes, path: "\(path).items")
       }
-      if let minItems { obj["minItems"] = .integer(minItems) }
-      if let maxItems { obj["maxItems"] = .integer(maxItems) }
-      if uniqueItems { obj["uniqueItems"] = .boolean(true) }
-      if let defaultValue { obj["default"] = .array(defaultValue) }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      if let minI { obj["minItems"] = .integer(minI) }
+      if let maxI { obj["maxItems"] = .integer(maxI) }
+      if unique { obj["uniqueItems"] = .boolean(true) }
+      if let defVal { obj["default"] = .array(defVal) }
 
-    case .union(
-      let variants, let exclusive, let dynamic, let defaultValue, let description,
-      let deprecated, let deprecatedReason):
-      guard variants.count >= 2 else {
-        throw A2UICatalogError("\(path).variants must contain at least 2 variants.")
-      }
+    case .union(let variants, let exclusive, let dynamic, let defVal):
       obj["type"] = .string("union")
-      if dynamic { obj["dynamic"] = .boolean(true) }
-      if !exclusive { obj["exclusive"] = .boolean(false) }
       obj["variants"] = .array(
-        try variants.enumerated().map { index, variant in
+        try variants.enumerated().map { idx, variant in
           try encodeType(
-            variant,
-            allowComponentTypes: allowComponentTypes,
-            path: "\(path).variants[\(index)]"
-          )
-        }
-      )
-      if let defaultValue { obj["default"] = defaultValue }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+            variant, allowComponentTypes: allowComponentTypes, path: "\(path).variants[\(idx)]")
+        })
+      if exclusive { obj["exclusive"] = .boolean(true) }
+      if dynamic { obj["dynamic"] = .boolean(true) }
+      if let defVal { obj["default"] = defVal }
 
-    case .dataBinding(let description, let deprecated, let deprecatedReason):
-      obj["type"] = .string("dataBinding")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
-
-    case .functionCall(let description, let deprecated, let deprecatedReason):
-      obj["type"] = .string("functionCall")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
-
-    case .ref(
-      let refName, let defaultValue, let description, let deprecated,
-      let deprecatedReason):
+    case .ref(let target, let defVal):
       obj["type"] = .string("ref")
-      obj["ref"] = .string(refName)
-      if let defaultValue { obj["default"] = defaultValue }
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+      obj["ref"] = .string(target)
+      if let defVal { obj["default"] = defVal }
 
-    case .child(let description, let deprecated, let deprecatedReason):
-      try assertComponentTypeAllowed("child", allowComponentTypes: allowComponentTypes, path: path)
-      obj["type"] = .string("child")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+    case .dataBinding:
+      obj["type"] = .string("dataBinding")
+    case .functionCall:
+      obj["type"] = .string("functionCall")
 
-    case .childList(let description, let deprecated, let deprecatedReason):
-      try assertComponentTypeAllowed(
-        "childList",
-        allowComponentTypes: allowComponentTypes,
-        path: path
-      )
-      obj["type"] = .string("childList")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
-
-    case .action(let description, let deprecated, let deprecatedReason):
-      try assertComponentTypeAllowed("action", allowComponentTypes: allowComponentTypes, path: path)
-      obj["type"] = .string("action")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
-
-    case .checkRule(let description, let deprecated, let deprecatedReason):
-      try assertComponentTypeAllowed(
-        "checkRule",
-        allowComponentTypes: allowComponentTypes,
-        path: path
-      )
-      obj["type"] = .string("checkRule")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
-
-    case .accessibility(let description, let deprecated, let deprecatedReason):
-      try assertComponentTypeAllowed(
-        "accessibility",
-        allowComponentTypes: allowComponentTypes,
-        path: path
-      )
-      obj["type"] = .string("accessibility")
-      appendBaseTypeFields(
-        &obj, description: description, deprecated: deprecated, reason: deprecatedReason)
+    case .child, .childList, .action, .checkRule, .accessibility:
+      let name: String
+      switch type.kind {
+      case .child: name = "child"
+      case .childList: name = "childList"
+      case .action: name = "action"
+      case .checkRule: name = "checkRule"
+      default: name = "accessibility"
+      }
+      try assertComponentTypeAllowed(name, allowComponentTypes: allowComponentTypes, path: path)
+      obj["type"] = .string(name)
 
     case .rawJSONSchema:
       throw A2UICatalogError(
         "Cannot encode untranslatable raw JSON Schema fragment at \(path) into a Catalog Document."
       )
     }
+
+    if let description = type.description { obj["description"] = .string(description) }
+    if type.deprecated { obj["deprecated"] = .boolean(true) }
+    if let reason = type.deprecatedReason { obj["deprecatedReason"] = .string(reason) }
     return .object(obj)
   }
 
-  private static func appendBaseTypeFields(
-    _ obj: inout OrderedDictionary<String, JSONValue>,
-    description: String?,
-    deprecated: Bool,
-    reason: String?
-  ) {
-    if let description { obj["description"] = .string(description) }
-    if deprecated { obj["deprecated"] = .boolean(true) }
-    if let reason { obj["deprecatedReason"] = .string(reason) }
-  }
-
   private static func encodeAtLeastOneOf(_ groups: [[String]]) -> JSONValue {
-    .array(groups.map { group in .array(group.map { .string($0) }) })
-  }
-
-  private static func encodeNumber(_ value: Double) -> JSONValue {
-    if let exact = Int(exactly: value) {
-      return .integer(exact)
-    }
-    return .number(value)
+    .array(groups.map { .array($0.map(JSONValue.string)) })
   }
 
   private static func encodeMetadata(
@@ -1543,25 +1059,19 @@ public enum CatalogDocumentCodec {
         return .object([:])
       }
       var ordered: OrderedDictionary<String, JSONValue> = [:]
-      for key in validated.keys.sorted() {
-        ordered[key] = validated[key]
-      }
+      for key in validated.keys.sorted() { ordered[key] = validated[key] }
       return .object(ordered)
     } catch let error as A2UIValidationError {
       throw A2UICatalogError(error.message, details: error.details)
     }
   }
 
-  // MARK: - Validation Helpers
+  // MARK: - Unified Model & Semantic Validation
 
-  private static func validateModelForEncoding(_ model: CatalogModel) throws {
+  private static func validateModel(_ model: CatalogModel) throws {
     for (typeName, typeDef) in model.types {
       try assertIdentifier(typeName, context: "types key")
-      guard typeDef.isDataType else {
-        throw A2UICatalogError(
-          "Type '\(typeName)' in 'types' may only contain data types."
-        )
-      }
+      try validateTypeSemantics(typeDef, allowComponentTypes: false, path: "types.\(typeName)")
     }
     var seenComponents: Set<String> = []
     for component in model.components {
@@ -1569,8 +1079,9 @@ public enum CatalogDocumentCodec {
       guard seenComponents.insert(component.name).inserted else {
         throw A2UICatalogError("Duplicate component name '\(component.name)'.")
       }
-      try validateParameterNames(
+      try validateParameters(
         component.parameters,
+        allowComponentTypes: true,
         forbidEnvelopeKeys: true,
         context: "components.\(component.name).parameters"
       )
@@ -1587,8 +1098,16 @@ public enum CatalogDocumentCodec {
         throw A2UICatalogError("Duplicate function name '\(function.name)'.")
       }
       try function.validateCallerConstraints()
-      try validateParameterNames(
+      if let retType = function.returnType.effectiveDataType {
+        try validateTypeSemantics(
+          retType,
+          allowComponentTypes: false,
+          path: "functions.\(function.name).returnType"
+        )
+      }
+      try validateParameters(
         function.parameters,
+        allowComponentTypes: false,
         forbidEnvelopeKeys: false,
         context: "functions.\(function.name).parameters"
       )
@@ -1597,19 +1116,35 @@ public enum CatalogDocumentCodec {
         declaredNames: Set(function.parameters.map(\.name)),
         path: "functions.\(function.name).atLeastOneOf"
       )
+      if let extra = function.additionalParameters.typedSchema {
+        try validateTypeSemantics(
+          extra,
+          allowComponentTypes: false,
+          path: "functions.\(function.name).additionalParameters"
+        )
+      }
     }
     if let surfaceProps = model.surfaceProperties {
-      try validateParameterNames(
+      try validateParameters(
         surfaceProps.properties,
+        allowComponentTypes: false,
         forbidEnvelopeKeys: false,
         context: "surfaceProperties.properties"
       )
+      if let extra = surfaceProps.additionalProperties.typedSchema {
+        try validateTypeSemantics(
+          extra,
+          allowComponentTypes: false,
+          path: "surfaceProperties.additionalProperties"
+        )
+      }
     }
-    try validateModelRefs(model)
+    try validateModelRefsAndCycles(model)
   }
 
-  private static func validateParameterNames(
+  private static func validateParameters(
     _ params: [ParameterDefinition],
+    allowComponentTypes: Bool,
     forbidEnvelopeKeys: Bool,
     context: String
   ) throws {
@@ -1624,69 +1159,218 @@ public enum CatalogDocumentCodec {
       guard seen.insert(param.name).inserted else {
         throw A2UICatalogError("Duplicate parameter name '\(param.name)' in \(context).")
       }
+      try validateTypeSemantics(
+        param.type,
+        allowComponentTypes: allowComponentTypes,
+        path: "\(context).\(param.name)"
+      )
     }
   }
 
-  private static func validateModelRefs(_ model: CatalogModel) throws {
+  private static func validateTypeSemantics(
+    _ type: TypeDefinition,
+    allowComponentTypes: Bool,
+    path: String
+  ) throws {
+    switch type.kind {
+    case .string(_, let formats, let pattern, let minL, let maxL, _):
+      if let formats {
+        guard !formats.isEmpty else {
+          throw A2UICatalogError("\(path).formats must be non-empty.")
+        }
+        var seenFormats: Set<String> = []
+        for fmt in formats {
+          guard validStringFormats.contains(fmt) else {
+            throw A2UICatalogError("Invalid string format '\(fmt)' at \(path).")
+          }
+          guard seenFormats.insert(fmt).inserted else {
+            throw A2UICatalogError("Duplicate string format '\(fmt)' at \(path).")
+          }
+        }
+      }
+      if let pattern {
+        do {
+          _ = try NSRegularExpression(pattern: pattern)
+        } catch {
+          throw A2UICatalogError("Invalid regex pattern '\(pattern)' at \(path): \(error).")
+        }
+      }
+      if let minL, minL < 0 {
+        throw A2UICatalogError("\(path).minLength must be non-negative.")
+      }
+      if let maxL, maxL < 0 {
+        throw A2UICatalogError("\(path).maxLength must be non-negative.")
+      }
+      if let minL, let maxL, minL > maxL {
+        throw A2UICatalogError("\(path).minLength (\(minL)) cannot exceed maxLength (\(maxL)).")
+      }
+
+    case .number(_, let minV, let maxV, let defVal):
+      if let minV, !minV.isFinite {
+        throw A2UICatalogError("\(path).min must be a finite number.")
+      }
+      if let maxV, !maxV.isFinite {
+        throw A2UICatalogError("\(path).max must be a finite number.")
+      }
+      if let defVal, !defVal.isFinite {
+        throw A2UICatalogError("\(path).default must be a finite number.")
+      }
+      if let minV, let maxV, minV > maxV {
+        throw A2UICatalogError("\(path).min (\(minV)) cannot exceed max (\(maxV)).")
+      }
+
+    case .integer(_, let minV, let maxV, _):
+      if let minV, let maxV, minV > maxV {
+        throw A2UICatalogError("\(path).min (\(minV)) cannot exceed max (\(maxV)).")
+      }
+
+    case .enum(let values, let valueType, _, let defVal):
+      guard !values.isEmpty else {
+        throw A2UICatalogError("\(path).values must be a non-empty array.")
+      }
+      var unique: [JSONValue] = []
+      for (idx, val) in values.enumerated() {
+        guard matchesEnumValueType(val, valueType) else {
+          throw A2UICatalogError(
+            "\(path).values[\(idx)] does not match valueType '\(valueType.rawValue)'."
+          )
+        }
+        guard !unique.contains(where: { jsonScalarEquals($0, val) }) else {
+          throw A2UICatalogError("Duplicate enum value at \(path).values[\(idx)].")
+        }
+        unique.append(val)
+      }
+      if let defVal {
+        guard matchesEnumValueType(defVal, valueType) else {
+          throw A2UICatalogError(
+            "\(path).default does not match valueType '\(valueType.rawValue)'."
+          )
+        }
+        guard unique.contains(where: { jsonScalarEquals($0, defVal) }) else {
+          throw A2UICatalogError("\(path).default must be one of the declared enum values.")
+        }
+      }
+
+    case .const(let value):
+      guard isScalar(value) else {
+        throw A2UICatalogError(
+          "\(path).value must be a JSON scalar (string, number, boolean, null).")
+      }
+
+    case .any(_, let nullable, let defVal):
+      if !nullable, defVal == .null {
+        throw A2UICatalogError("\(path).default cannot be null when 'nullable' is false.")
+      }
+
+    case .object(_, let properties, let additional, let atLeastOneOf, _):
+      try validateParameters(
+        properties,
+        allowComponentTypes: allowComponentTypes,
+        forbidEnvelopeKeys: false,
+        context: "\(path).properties"
+      )
+      if let extra = additional.typedSchema {
+        try validateTypeSemantics(
+          extra,
+          allowComponentTypes: allowComponentTypes,
+          path: "\(path).additionalProperties"
+        )
+      }
+      try validateAtLeastOneOf(
+        atLeastOneOf,
+        declaredNames: Set(properties.map(\.name)),
+        path: "\(path).atLeastOneOf"
+      )
+
+    case .array(_, let items, let minI, let maxI, _, _):
+      if let minI, minI < 0 {
+        throw A2UICatalogError("\(path).minItems must be non-negative.")
+      }
+      if let maxI, maxI < 0 {
+        throw A2UICatalogError("\(path).maxItems must be non-negative.")
+      }
+      if let minI, let maxI, minI > maxI {
+        throw A2UICatalogError("\(path).minItems (\(minI)) cannot exceed maxItems (\(maxI)).")
+      }
+      if let items {
+        try validateTypeSemantics(
+          items,
+          allowComponentTypes: allowComponentTypes,
+          path: "\(path).items"
+        )
+      }
+
+    case .union(let variants, _, _, _):
+      guard variants.count >= 2 else {
+        throw A2UICatalogError("\(path).variants must contain at least 2 variants.")
+      }
+      for (idx, variant) in variants.enumerated() {
+        try validateTypeSemantics(
+          variant,
+          allowComponentTypes: allowComponentTypes,
+          path: "\(path).variants[\(idx)]"
+        )
+      }
+
+    case .ref(let target, _):
+      try assertIdentifier(target, context: "\(path).ref")
+
+    case .child, .childList, .action, .checkRule, .accessibility:
+      guard allowComponentTypes else {
+        throw A2UICatalogError("Component-only type is not allowed in data-only scope at \(path).")
+      }
+
+    case .boolean, .dataBinding, .functionCall, .rawJSONSchema:
+      break
+    }
+  }
+
+  private static func validateModelRefsAndCycles(_ model: CatalogModel) throws {
     let definedTypes = Set(model.types.keys)
     for (name, typeDef) in model.types {
       try validateTypeRefs(typeDef, definedTypes: definedTypes, path: "types.\(name)")
     }
-    var visiting: Set<String> = []
-    var visited: Set<String> = []
+    // Reject only unguarded direct alias cycles (`A -> Ref(B) -> Ref(A)`).
+    // Structural recursion guarded by `.object`, `.array`, or `.union` is permitted.
     for name in model.types.keys.sorted() {
-      try detectRefCycles(
-        typeName: name,
-        types: model.types,
-        visiting: &visiting,
-        visited: &visited
-      )
+      var visited: Set<String> = [name]
+      var current = model.types[name]
+      while case .ref(let target, _) = current?.kind {
+        guard visited.insert(target).inserted else {
+          throw A2UICatalogError("Cyclic local type alias detected involving '\(name)'.")
+        }
+        current = model.types[target]
+      }
     }
     if let surfaceProps = model.surfaceProperties {
       for prop in surfaceProps.properties {
         try validateTypeRefs(
-          prop.type,
-          definedTypes: definedTypes,
-          path: "surfaceProperties.\(prop.name)"
-        )
+          prop.type, definedTypes: definedTypes, path: "surfaceProperties.\(prop.name)")
       }
-      if case .typed(let extra) = surfaceProps.additionalProperties {
+      if let extra = surfaceProps.additionalProperties.typedSchema {
         try validateTypeRefs(
-          extra,
-          definedTypes: definedTypes,
-          path: "surfaceProperties.additionalProperties"
-        )
+          extra, definedTypes: definedTypes, path: "surfaceProperties.additionalProperties")
       }
     }
     for component in model.components {
       for param in component.parameters {
         try validateTypeRefs(
-          param.type,
-          definedTypes: definedTypes,
-          path: "components.\(component.name).\(param.name)"
+          param.type, definedTypes: definedTypes, path: "components.\(component.name).\(param.name)"
         )
       }
     }
     for function in model.functions {
-      if case .data(let returnType) = function.returnType.kind {
+      if let retType = function.returnType.effectiveDataType {
         try validateTypeRefs(
-          returnType,
-          definedTypes: definedTypes,
-          path: "functions.\(function.name).returnType"
-        )
+          retType, definedTypes: definedTypes, path: "functions.\(function.name).returnType")
       }
       for param in function.parameters {
         try validateTypeRefs(
-          param.type,
-          definedTypes: definedTypes,
-          path: "functions.\(function.name).\(param.name)"
-        )
+          param.type, definedTypes: definedTypes, path: "functions.\(function.name).\(param.name)")
       }
-      if case .typed(let extra) = function.additionalParameters {
+      if let extra = function.additionalParameters.typedSchema {
         try validateTypeRefs(
-          extra,
-          definedTypes: definedTypes,
-          path: "functions.\(function.name).additionalParameters"
+          extra, definedTypes: definedTypes, path: "functions.\(function.name).additionalParameters"
         )
       }
     }
@@ -1697,80 +1381,52 @@ public enum CatalogDocumentCodec {
     definedTypes: Set<String>,
     path: String
   ) throws {
-    switch type {
-    case .ref(let refName, _, _, _, _):
+    switch type.kind {
+    case .ref(let refName, _):
       guard definedTypes.contains(refName) else {
         throw A2UICatalogError("Unresolved local type ref '\(refName)' at \(path).")
       }
-    case .object(_, let properties, let additional, _, _, _, _, _):
+    case .object(_, let properties, let additional, _, _):
       for prop in properties {
         try validateTypeRefs(prop.type, definedTypes: definedTypes, path: "\(path).\(prop.name)")
       }
-      if case .typed(let extra) = additional {
+      if let extra = additional.typedSchema {
         try validateTypeRefs(
-          extra,
-          definedTypes: definedTypes,
-          path: "\(path).additionalProperties"
-        )
+          extra, definedTypes: definedTypes, path: "\(path).additionalProperties")
       }
-    case .array(_, let items, _, _, _, _, _, _, _):
+    case .array(_, let items, _, _, _, _):
       if let items {
         try validateTypeRefs(items, definedTypes: definedTypes, path: "\(path).items")
       }
-    case .union(let variants, _, _, _, _, _, _):
-      for (index, variant) in variants.enumerated() {
-        try validateTypeRefs(
-          variant,
-          definedTypes: definedTypes,
-          path: "\(path).variants[\(index)]"
-        )
+    case .union(let variants, _, _, _):
+      for (idx, variant) in variants.enumerated() {
+        try validateTypeRefs(variant, definedTypes: definedTypes, path: "\(path).variants[\(idx)]")
       }
-    case .string, .number, .integer, .boolean, .enum, .const, .any, .dataBinding, .functionCall,
-      .child, .childList, .action, .checkRule, .accessibility, .rawJSONSchema:
+    default:
       break
     }
   }
 
-  private static func detectRefCycles(
-    typeName: String,
-    types: [String: TypeDefinition],
-    visiting: inout Set<String>,
-    visited: inout Set<String>
+  private static func validateAtLeastOneOf(
+    _ groups: [[String]],
+    declaredNames: Set<String>,
+    path: String
   ) throws {
-    guard !visited.contains(typeName) else { return }
-    guard visiting.insert(typeName).inserted else {
-      throw A2UICatalogError("Cyclic local type reference detected involving '\(typeName)'.")
-    }
-    if let typeDef = types[typeName] {
-      for referenced in collectDirectRefs(in: typeDef) {
-        try detectRefCycles(
-          typeName: referenced,
-          types: types,
-          visiting: &visiting,
-          visited: &visited
-        )
+    for (idx, group) in groups.enumerated() {
+      guard group.count >= 2 else {
+        throw A2UICatalogError("\(path)[\(idx)] must contain at least 2 parameter names.")
       }
-    }
-    visiting.remove(typeName)
-    visited.insert(typeName)
-  }
-
-  private static func collectDirectRefs(in type: TypeDefinition) -> [String] {
-    switch type {
-    case .ref(let name, _, _, _, _):
-      return [name]
-    case .object(_, let properties, let additional, _, _, _, _, _):
-      var refs = properties.flatMap { collectDirectRefs(in: $0.type) }
-      if case .typed(let extra) = additional {
-        refs.append(contentsOf: collectDirectRefs(in: extra))
+      var seen: Set<String> = []
+      for name in group {
+        guard seen.insert(name).inserted else {
+          throw A2UICatalogError("Duplicate parameter '\(name)' in \(path)[\(idx)].")
+        }
+        guard declaredNames.contains(name) else {
+          throw A2UICatalogError(
+            "Parameter '\(name)' in \(path)[\(idx)] is not declared in properties/parameters."
+          )
+        }
       }
-      return refs
-    case .array(_, let items, _, _, _, _, _, _, _):
-      return items.map { collectDirectRefs(in: $0) } ?? []
-    case .union(let variants, _, _, _, _, _, _):
-      return variants.flatMap { collectDirectRefs(in: $0) }
-    default:
-      return []
     }
   }
 
@@ -1786,27 +1442,15 @@ public enum CatalogDocumentCodec {
     }
   }
 
-  private static func assertAllowedKeys(
-    _ object: OrderedDictionary<String, JSONValue>,
-    allowed: Set<String>,
-    context: String
-  ) throws {
-    for key in object.keys where !allowed.contains(key) {
-      throw A2UICatalogError("Unrecognized property '\(key)' in \(context).")
-    }
-  }
-
   private static func assertIdentifier(_ name: String, context: String) throws {
     guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
-      throw A2UICatalogError(
-        "Invalid UAX #31 identifier '\(name)' in \(context)."
-      )
+      throw A2UICatalogError("Invalid UAX #31 identifier '\(name)' in \(context).")
     }
   }
 
   private static func assertComponentName(_ name: String) throws {
     guard name != "Surface" else {
-      throw A2UICatalogError("Component name 'Surface' is reserved and forbidden.")
+      throw A2UICatalogError("Component name 'Surface' is reserved and cannot be declared.")
     }
     try assertIdentifier(name, context: "component name")
   }
@@ -1814,77 +1458,10 @@ public enum CatalogDocumentCodec {
   private static func assertFunctionName(_ name: String) throws {
     guard !name.hasPrefix("@") else {
       throw A2UICatalogError(
-        "Function name '\(name)' cannot start with reserved prefix '@'."
+        "Function name '\(name)' cannot start with '@' (reserved for system functions)."
       )
     }
     try assertIdentifier(name, context: "function name")
-  }
-
-  private static func decodeOptionalString(_ raw: JSONValue?, field: String) throws -> String? {
-    guard let raw else { return nil }
-    guard let str = raw.stringValue else {
-      throw A2UICatalogError("Field '\(field)' must be a string.")
-    }
-    return str
-  }
-
-  private static func decodeOptionalBool(_ raw: JSONValue?, field: String) throws -> Bool? {
-    guard let raw else { return nil }
-    guard let val = raw.boolValue else {
-      throw A2UICatalogError("Field '\(field)' must be a boolean.")
-    }
-    return val
-  }
-
-  private static func decodeOptionalInt(_ raw: JSONValue?, field: String) throws -> Int? {
-    guard let raw else { return nil }
-    guard let val = raw.intValue else {
-      throw A2UICatalogError("Field '\(field)' must be an integer.")
-    }
-    return val
-  }
-
-  private static func decodeOptionalNonNegativeInt(
-    _ raw: JSONValue?,
-    field: String
-  ) throws -> Int? {
-    guard let val = try decodeOptionalInt(raw, field: field) else { return nil }
-    guard val >= 0 else {
-      throw A2UICatalogError("Field '\(field)' must be a non-negative integer.")
-    }
-    return val
-  }
-
-  private static func decodeOptionalDouble(_ raw: JSONValue?, field: String) throws -> Double? {
-    guard let raw else { return nil }
-    guard let val = raw.doubleValue else {
-      throw A2UICatalogError("Field '\(field)' must be a number.")
-    }
-    return val
-  }
-
-  private static func decodeOptionalSemVer(_ raw: JSONValue?) throws -> String? {
-    guard let version = try decodeOptionalString(raw, field: "protocolVersion") else {
-      return nil
-    }
-    guard isValidSemVer(version) else {
-      throw A2UICatalogError(
-        "Field 'protocolVersion' must be a SemVer string, got '\(version)'."
-      )
-    }
-    return version
-  }
-
-  private static func isValidSemVer(_ value: String) -> Bool {
-    let range = NSRange(value.startIndex..<value.endIndex, in: value)
-    return semverRegex.firstMatch(in: value, options: [], range: range) != nil
-  }
-
-  private static func normalizeProtocolVersion(_ version: String) -> String {
-    if version.hasPrefix("v") || version.hasPrefix("V") {
-      return String(version.dropFirst())
-    }
-    return version
   }
 
   private static func decodeOptionalMetadata(
@@ -1899,140 +1476,98 @@ public enum CatalogDocumentCodec {
     }
   }
 
-  private static func decodeOptionalFormats(
-    _ raw: JSONValue?,
-    path: String
-  ) throws -> [String]? {
-    guard let raw else { return nil }
-    if let single = raw.stringValue {
-      guard !single.isEmpty else {
-        throw A2UICatalogError("\(path) must not be an empty string.")
-      }
-      return [single]
-    }
-    guard let array = raw.arrayValue, !array.isEmpty else {
-      throw A2UICatalogError("\(path) must be a non-empty string or non-empty string array.")
-    }
-    var seen: Set<String> = []
-    var result: [String] = []
-    for item in array {
-      guard let str = item.stringValue, !str.isEmpty else {
-        throw A2UICatalogError("\(path) entries must be non-empty strings.")
-      }
-      guard seen.insert(str).inserted else {
-        throw A2UICatalogError("\(path) contains duplicate format '\(str)'.")
-      }
-      result.append(str)
-    }
-    return result
-  }
-
-  private static func decodeOptionalIdentifierList(
-    _ raw: JSONValue?,
-    field: String
-  ) throws -> [String]? {
-    guard let raw else { return nil }
-    guard let array = raw.arrayValue else {
-      throw A2UICatalogError("Field '\(field)' must be an array of identifiers.")
-    }
-    var seen: Set<String> = []
-    var result: [String] = []
-    for item in array {
-      guard let str = item.stringValue else {
-        throw A2UICatalogError("Field '\(field)' entries must be strings.")
-      }
-      try assertIdentifier(str, context: field)
-      guard seen.insert(str).inserted else {
-        throw A2UICatalogError("Field '\(field)' contains duplicate identifier '\(str)'.")
-      }
-      result.append(str)
-    }
-    return result
-  }
-
-  private static func decodeAtLeastOneOf(
-    _ raw: JSONValue?,
-    declaredNames: Set<String>,
-    path: String
-  ) throws -> [[String]] {
-    guard let raw else { return [] }
-    guard let outer = raw.arrayValue, !outer.isEmpty else {
-      throw A2UICatalogError("\(path) must be a non-empty array of identifier arrays.")
-    }
-    var groups: [[String]] = []
-    for (index, item) in outer.enumerated() {
-      guard let inner = item.arrayValue, !inner.isEmpty else {
-        throw A2UICatalogError("\(path)[\(index)] must be a non-empty array of identifiers.")
-      }
-      var seen: Set<String> = []
-      var group: [String] = []
-      for entry in inner {
-        guard let name = entry.stringValue else {
-          throw A2UICatalogError("\(path)[\(index)] entries must be strings.")
-        }
-        try assertIdentifier(name, context: "\(path)[\(index)]")
-        guard seen.insert(name).inserted else {
-          throw A2UICatalogError("\(path)[\(index)] contains duplicate identifier '\(name)'.")
-        }
-        group.append(name)
-      }
-      groups.append(group)
-    }
-    try validateAtLeastOneOf(groups, declaredNames: declaredNames, path: path)
-    return groups
-  }
-
-  private static func validateAtLeastOneOf(
-    _ groups: [[String]],
-    declaredNames: Set<String>,
-    path: String
-  ) throws {
-    for (index, group) in groups.enumerated() {
-      guard !group.isEmpty else {
-        throw A2UICatalogError("\(path)[\(index)] must not be empty.")
-      }
-      for name in group where !declaredNames.contains(name) {
-        throw A2UICatalogError(
-          "\(path)[\(index)] references undeclared parameter '\(name)'."
-        )
-      }
-    }
-  }
-
-  private static func validateEnumValues(
-    _ values: [JSONValue],
-    valueType: EnumValueType,
-    path: String
-  ) throws {
-    for (index, val) in values.enumerated() {
-      guard matchesEnumValueType(val, valueType) else {
-        throw A2UICatalogError(
-          "\(path)[\(index)] does not match enum valueType '\(valueType.rawValue)'."
-        )
-      }
-      for prev in values[..<index] where MetadataValidator.jsonEquals(prev, val) {
-        throw A2UICatalogError("\(path) contains duplicate enum value.")
-      }
-    }
-  }
-
   private static func matchesEnumValueType(_ value: JSONValue, _ valueType: EnumValueType) -> Bool {
     switch valueType {
-    case .string:
-      return value.stringValue != nil
-    case .number:
-      return value.doubleValue != nil
-    case .boolean:
-      return value.boolValue != nil
+    case .string: return value.stringValue != nil
+    case .number: return value.doubleValue.map(\.isFinite) ?? false
+    case .boolean: return value.boolValue != nil
     }
   }
 
-  private static func isValidConstValue(_ value: JSONValue) -> Bool {
+  private static func isScalar(_ value: JSONValue) -> Bool {
     switch value {
-    case .string, .number, .integer, .boolean, .null:
-      return true
-    case .array, .object:
-      return false
+    case .string, .integer, .boolean, .null: return true
+    case .number(let n): return n.isFinite
+    case .array, .object: return false
     }
+  }
+
+  // MARK: - Shared Internal Utilities
+
+  internal static func isValidSemVer(_ value: String) -> Bool {
+    guard !value.isEmpty else { return false }
+    let buildSplit = value.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+    if buildSplit.count == 2 {
+      let buildParts = buildSplit[1].split(separator: ".", omittingEmptySubsequences: false)
+      guard
+        !buildParts.isEmpty,
+        buildParts.allSatisfy({ part in
+          !part.isEmpty
+            && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+        })
+      else {
+        return false
+      }
+    }
+    let preSplit = buildSplit[0].split(
+      separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+    if preSplit.count == 2 {
+      let preParts = preSplit[1].split(separator: ".", omittingEmptySubsequences: false)
+      guard
+        !preParts.isEmpty,
+        preParts.allSatisfy({ part in
+          guard !part.isEmpty else { return false }
+          guard part.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else {
+            return false
+          }
+          if part.allSatisfy(\.isNumber) {
+            return part.count == 1 || !part.hasPrefix("0")
+          }
+          return true
+        })
+      else {
+        return false
+      }
+    }
+    let coreParts = preSplit[0].split(separator: ".", omittingEmptySubsequences: false)
+    guard coreParts.count == 2 || coreParts.count == 3 else { return false }
+    return coreParts.allSatisfy { part in
+      !part.isEmpty && part.allSatisfy({ $0.isASCII && $0.isNumber })
+        && (part.count == 1 || !part.hasPrefix("0"))
+    }
+  }
+
+  internal static func normalizeProtocolVersion(_ version: String) -> String {
+    if version.hasPrefix("v") || version.hasPrefix("V") {
+      return String(version.dropFirst())
+    }
+    return version
+  }
+
+  internal static func encodeNumber(_ value: Double) -> JSONValue {
+    if let exact = Int(exactly: value) {
+      return .integer(exact)
+    }
+    return .number(value)
+  }
+
+  internal static func parseReturnShorthand(_ raw: String) -> FunctionReturnDefinition? {
+    switch raw {
+    case "string": return .string
+    case "number": return .number
+    case "integer": return .integer
+    case "boolean": return .boolean
+    case "array": return .array
+    case "object": return .object
+    case "validationResult": return .validationResult
+    case "any": return .any
+    case "void": return .void
+    default: return nil
+    }
+  }
+
+  internal static func jsonScalarEquals(_ lhs: JSONValue, _ rhs: JSONValue) -> Bool {
+    if let l = lhs.doubleValue, let r = rhs.doubleValue { return l == r }
+    return lhs == rhs
   }
 }

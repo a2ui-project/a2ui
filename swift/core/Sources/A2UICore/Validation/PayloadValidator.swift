@@ -62,17 +62,6 @@ public final class PayloadValidator: Sendable {
     return catalog.isAtLeastV10
   }
 
-  /// `AccessibilityAttributes` from the v0.9.1 and v1.0 common types. Both reference a bundled
-  /// common type, so building them can only fail on a developer error.
-  private static let v09AccessibilitySchema = try! Schema(
-    rawSchema: .object(["$ref": .string(A2UICommonSchema.uri(for: "AccessibilityAttributes"))]),
-    context: A2UISchemaRegistry.makeContext()
-  )
-  private static let v10AccessibilitySchema = try! Schema(
-    rawSchema: .object(["$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))]),
-    context: A2UISchemaRegistry.makeContext()
-  )
-
   /// Creates a payload validator scoped to a single catalog.
   ///
   /// - Parameters:
@@ -87,7 +76,8 @@ public final class PayloadValidator: Sendable {
     self.config = config
     if Self.enforcesIdentifiers(catalog: anyCatalog, config: config) {
       var envelopeKeysByComponent: [String: Set<String>] = [:]
-      for (name, componentAPI) in anyCatalog.components where !componentAPI.hasCanonicalDefinition {
+      for (name, componentAPI) in anyCatalog.components
+      where componentAPI.definition.rawJSONSchema != nil {
         envelopeKeysByComponent[name] = Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
       }
       self.declaredEnvelopeKeys = envelopeKeysByComponent
@@ -296,46 +286,48 @@ public final class PayloadValidator: Sendable {
     componentAPI: any ComponentAPI,
     envelope: ComponentEnvelope?
   ) throws {
-    if componentAPI.hasCanonicalDefinition {
-      try validateCanonicalComponent(
-        component,
-        type: type,
-        definition: componentAPI.definition,
-        envelope: envelope
+    let definition = componentAPI.definition
+    let version = effectiveProtocolVersion
+    let ownProperties = try validateAndExtractOwnProperties(
+      component,
+      type: type,
+      definition: definition,
+      envelope: envelope,
+      version: version
+    )
+
+    if definition.rawJSONSchema == nil {
+      let errors = ModelPayloadValidator.validateComponentProperties(
+        ownProperties,
+        definition: definition,
+        types: catalog.types,
+        protocolVersion: version,
+        allowUnknownElements: config.allowUnknownElements
       )
-      return
+      guard !errors.isEmpty else { return }
+      let errorMessage = errors.map(\.message).joined(separator: "; ")
+      throw A2UIValidationError(errorMessage, details: errors)
     }
 
+    // Targeted fallback for legacy components whose root schema contains untranslatable keywords
+    // (such as root `oneOf`, `if`/`then`/`else`, or `patternProperties`).
     let schemaJSON = componentAPI.schema.jsonValue
-    var schemaTargetDict: [String: JSONValue]
-    if let envelope {
-      schemaTargetDict = try schemaInstance(
-        for: component,
-        envelope: envelope,
-        type: type,
-        schema: schemaJSON
-      )
-    } else {
-      try rejectUndeclaredPrefixedMixins(in: component, type: type, schema: schemaJSON)
-      // `accessibility` comes from `ComponentCommon`, so a component schema need not declare
-      // it. When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
-      // component schema check, so a closed schema doesn't reject it.
-      schemaTargetDict = component
-      if !Self.schemaDeclaresProperty(
-        "accessibility",
-        in: schemaJSON,
-        root: schemaJSON,
-        visitedRefs: []
-      ), let accessibility = schemaTargetDict.removeValue(forKey: "accessibility") {
-        try validateAccessibility(accessibility)
+    var schemaTargetDict = ownProperties
+    if envelope != nil {
+      let declaredKeys = declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: schemaJSON)
+      for key in Self.envelopeKeys where declaredKeys.contains(key) {
+        schemaTargetDict[key] = component[key]
       }
+    } else {
+      schemaTargetDict["id"] = component["id"]
+      schemaTargetDict["component"] = component["component"]
     }
 
     let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: schemaTargetDict))
     let validationResult = componentAPI.schema.validate(instance)
     let leafErrors = collectComponentLeafErrors(
       from: validationResult.errors ?? [],
-      componentSchema: componentAPI.schema.jsonValue
+      componentSchema: schemaJSON
     )
     let onlyUnknownProperties =
       config.allowUnknownElements && !(validationResult.errors ?? []).isEmpty && leafErrors.isEmpty
@@ -350,16 +342,16 @@ public final class PayloadValidator: Sendable {
     throw A2UIValidationError(errorMessage, details: errorDetails)
   }
 
-  /// Validates a component directly against its canonical ``ComponentDefinition`` without compiling
-  /// or walking JSON Schema.
-  private func validateCanonicalComponent(
+  /// Validates a component's protocol mixins (`@metadata`, `@accessibility`, `@checks`, or their
+  /// pre-v1.0 equivalents) against ``ComponentDefinition`` and returns the component's own
+  /// property dictionary.
+  private func validateAndExtractOwnProperties(
     _ component: [String: JSONValue],
     type: String,
     definition: ComponentDefinition,
-    envelope: ComponentEnvelope?
-  ) throws {
-    let version = effectiveProtocolVersion
-    var ownProperties: [String: JSONValue]
+    envelope: ComponentEnvelope?,
+    version: A2UIProtocolVersion
+  ) throws -> [String: JSONValue] {
     if let envelope {
       if let metadata = envelope[.metadata] {
         let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
@@ -404,142 +396,11 @@ public final class PayloadValidator: Sendable {
           throw A2UIValidationError(msg, details: checkErrors)
         }
       }
-      ownProperties = envelope.properties
-    } else {
-      for key in ComponentEnvelope.prefixedKeys.sorted()
-      where component[key] != nil && definition.parameter(named: key) == nil {
-        let msg =
-          "Validation failed for component '\(type)': '\(key)' is a v1.0 component key "
-          + "and is not allowed before v1.0"
-        throw A2UIValidationError(
-          msg,
-          details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
-        )
-      }
-      ownProperties = component
-      ownProperties.removeValue(forKey: "id")
-      ownProperties.removeValue(forKey: "component")
-      if definition.parameter(named: "accessibility") == nil,
-        let accessibility = ownProperties.removeValue(forKey: "accessibility")
-      {
-        let accErrors = ModelPayloadValidator.validateAccessibility(
-          accessibility,
-          key: "accessibility",
-          protocolVersion: version,
-          allowUnknownElements: config.allowUnknownElements
-        )
-        if !accErrors.isEmpty {
-          throw A2UIValidationError(
-            "Field 'accessibility' must match AccessibilityAttributes",
-            details: accErrors
-          )
-        }
-      }
-      if definition.isCheckable, definition.parameter(named: "checks") == nil,
-        let checks = ownProperties.removeValue(forKey: "checks")
-      {
-        let checkErrors = ModelPayloadValidator.validateChecks(
-          checks,
-          componentType: type,
-          key: "checks",
-          protocolVersion: version,
-          allowUnknownElements: config.allowUnknownElements
-        )
-        if !checkErrors.isEmpty {
-          let msg = checkErrors.map(\.message).joined(separator: "; ")
-          throw A2UIValidationError(msg, details: checkErrors)
-        }
-      }
+      return envelope.properties
     }
 
-    let errors = ModelPayloadValidator.validateComponentProperties(
-      ownProperties,
-      definition: definition,
-      types: catalog.types,
-      protocolVersion: version,
-      allowUnknownElements: config.allowUnknownElements
-    )
-    guard !errors.isEmpty else { return }
-    let errorMessage = errors.map(\.message).joined(separator: "; ")
-    throw A2UIValidationError(errorMessage, details: errors)
-  }
-
-  /// Builds the instance that a v1.0 component schema checks, after checking the component's mixins
-  /// on their own.
-  ///
-  /// The instance holds the component's own properties, and `id` and `component` when the schema
-  /// declares them. Checks stay in it, under the name the component schema gives them (the shared
-  /// v1.0 `Checkable` definition calls them `@checks`), so the schema checks their rules.
-  ///
-  /// - Throws: `A2UIValidationError` when a mixin is invalid, or when a component that is not
-  ///   checkable carries checks.
-  private func schemaInstance(
-    for component: [String: JSONValue],
-    envelope: ComponentEnvelope,
-    type: String,
-    schema: JSONValue
-  ) throws -> [String: JSONValue] {
-    var instance = envelope.properties
-    let declaredKeys = declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: schema)
-    for key in Self.envelopeKeys where declaredKeys.contains(key) {
-      instance[key] = component[key]
-    }
-    if let metadata = envelope[.metadata] {
-      let key = envelope.key(of: .metadata) ?? ComponentEnvelope.Mixin.metadata.prefixedKey
-      _ = try MetadataValidator.validate(metadata, pathPrefix: key)
-    }
-    if let accessibility = envelope[.accessibility] {
-      let key =
-        envelope.key(of: .accessibility) ?? ComponentEnvelope.Mixin.accessibility.prefixedKey
-      try validateAccessibility(accessibility, key: key)
-    }
-    if let checks = envelope[.checks] {
-      let key = envelope.key(of: .checks) ?? ComponentEnvelope.Mixin.checks.prefixedKey
-      guard ComponentEnvelope.isCheckable(schema) else {
-        let msg =
-          "Validation failed for component '\(type)': '\(key)' is not allowed on a "
-          + "component that is not checkable"
-        throw A2UIValidationError(
-          msg,
-          details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
-        )
-      }
-      // The shared v1.0 `Checkable` definition names the mixin `@checks`, so the checks go
-      // under `@checks` unless the component schema itself declares a bare `checks` list of
-      // check rules as the mixin. A custom bare `checks` property is never overwritten.
-      let declaresBare = Self.schemaDeclaresProperty(
-        ComponentEnvelope.Mixin.checks.bareKey,
-        in: schema,
-        root: schema,
-        visitedRefs: []
-      )
-      let declaresPrefixed = Self.schemaDeclaresProperty(
-        ComponentEnvelope.Mixin.checks.prefixedKey,
-        in: schema,
-        root: schema,
-        visitedRefs: []
-      )
-      let bareIsChecksMixin =
-        declaresBare && !ComponentEnvelope.declaresOwnProperty(.checks, in: schema)
-      instance[declaresPrefixed || !bareIsChecksMixin ? "@checks" : "checks"] = checks
-    }
-    return instance
-  }
-
-  /// Rejects the v1.0 `@`-prefixed component mixins on a component before v1.0, unless its
-  /// schema declares them as properties of its own. They are rejected even when unknown
-  /// properties are allowed, so that a v1.0 payload is not taken for a valid earlier one.
-  ///
-  /// - Throws: `A2UIValidationError` naming the first such key.
-  private func rejectUndeclaredPrefixedMixins(
-    in component: [String: JSONValue],
-    type: String,
-    schema: JSONValue
-  ) throws {
-    for key in ComponentEnvelope.prefixedKeys.sorted() where component[key] != nil {
-      guard !Self.schemaDeclaresProperty(key, in: schema, root: schema, visitedRefs: []) else {
-        continue
-      }
+    for key in ComponentEnvelope.prefixedKeys.sorted()
+    where component[key] != nil && definition.parameter(named: key) == nil {
       let msg =
         "Validation failed for component '\(type)': '\(key)' is a v1.0 component key "
         + "and is not allowed before v1.0"
@@ -548,6 +409,41 @@ public final class PayloadValidator: Sendable {
         details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
       )
     }
+    var ownProperties = component
+    ownProperties.removeValue(forKey: "id")
+    ownProperties.removeValue(forKey: "component")
+    if definition.parameter(named: "accessibility") == nil,
+      let accessibility = ownProperties.removeValue(forKey: "accessibility")
+    {
+      let accErrors = ModelPayloadValidator.validateAccessibility(
+        accessibility,
+        key: "accessibility",
+        protocolVersion: version,
+        allowUnknownElements: config.allowUnknownElements
+      )
+      if !accErrors.isEmpty {
+        throw A2UIValidationError(
+          "Field 'accessibility' must match AccessibilityAttributes",
+          details: accErrors
+        )
+      }
+    }
+    if definition.isCheckable, definition.parameter(named: "checks") == nil,
+      let checks = ownProperties.removeValue(forKey: "checks")
+    {
+      let checkErrors = ModelPayloadValidator.validateChecks(
+        checks,
+        componentType: type,
+        key: "checks",
+        protocolVersion: version,
+        allowUnknownElements: config.allowUnknownElements
+      )
+      if !checkErrors.isEmpty {
+        let msg = checkErrors.map(\.message).joined(separator: "; ")
+        throw A2UIValidationError(msg, details: checkErrors)
+      }
+    }
+    return ownProperties
   }
 
   private func collectComponentLeafErrors(
@@ -714,30 +610,17 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    let normalizedArgs = args ?? [:]
-    if function.api.hasCanonicalDefinition {
-      let errors = ModelPayloadValidator.validateFunctionArguments(
-        normalizedArgs,
-        definition: function.api.definition,
-        types: catalog.types,
-        protocolVersion: effectiveProtocolVersion,
-        allowDynamicExpressions: allowDynamicArgValues,
-        allowNullValues: false
-      )
-      guard !errors.isEmpty else { return }
-      let errorMessage = errors.map(\.message).joined(separator: "; ")
-      throw A2UIValidationError(errorMessage, details: errors)
-    }
-
-    let schema =
-      allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs)
-      ? schemaAllowingDynamicArgs(baseSchema: function.api.schema, args: normalizedArgs)
-      : function.api.schema
-
-    let argsInstance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: normalizedArgs))
-    let result = schema.validate(argsInstance)
-    guard !result.isValid else { return }
-    throw buildFunctionSchemaValidationError(name: name, result: result)
+    let errors = ModelPayloadValidator.validateFunctionArguments(
+      args ?? [:],
+      definition: function.api.definition,
+      types: catalog.types,
+      protocolVersion: effectiveProtocolVersion,
+      allowDynamicExpressions: allowDynamicArgValues,
+      allowNullValues: false
+    )
+    guard !errors.isEmpty else { return }
+    let errorMessage = errors.map(\.message).joined(separator: "; ")
+    throw A2UIValidationError(errorMessage, details: errors)
   }
 
   /// Throws if the renderer may not call `name`, a function of this catalog.
@@ -774,74 +657,6 @@ public final class PayloadValidator: Sendable {
       return name == "@index" ? IndexFunction() : nil
     }
     return catalog.functions[name]
-  }
-
-  private func schemaAllowingDynamicArgs(
-    baseSchema: Schema,
-    args: [String: JSONValue]
-  ) -> Schema {
-    guard var rawObj = baseSchema.jsonValue.objectValue,
-      var properties = rawObj["properties"]?.objectValue
-    else {
-      return baseSchema
-    }
-    for (key, argValue) in args where properties[key] != nil {
-      switch argValue {
-      case .object where isDynamicExpression(argValue):
-        properties[key] = .object([:])
-      case .array(let items) where items.contains(where: { isDynamicExpression($0) }):
-        if var propObj = properties[key]?.objectValue, let itemSchema = propObj["items"] {
-          propObj["prefixItems"] = .array(
-            items.map { isDynamicExpression($0) ? .object([:]) : itemSchema }
-          )
-          propObj["items"] = .object([:])
-          properties[key] = .object(propObj)
-        }
-      default:
-        break
-      }
-    }
-    rawObj["properties"] = .object(properties)
-    return
-      (try? Schema(
-        rawSchema: .object(rawObj),
-        context: A2UISchemaRegistry.makeContext()
-      )) ?? baseSchema
-  }
-
-  private func buildFunctionSchemaValidationError(
-    name: String,
-    result: JSONSchema.ValidationResult
-  ) -> A2UIValidationError {
-    let leafErrors = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }
-    var leafMessages: [String] = []
-    var details: [A2UIErrorDetail] = []
-    for leaf in leafErrors {
-      let pointer = leaf.instanceLocation.jsonPointerString
-      let trimmed = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
-      let path = trimmed.isEmpty ? "functions.\(name)" : "functions.\(name).\(trimmed)"
-      let code = leaf.keyword == "required" ? "missing_field" : "invalid_value"
-      let msg =
-        trimmed.isEmpty || leaf.message.contains(trimmed)
-        ? leaf.message
-        : "\(trimmed): \(leaf.message)"
-      leafMessages.append(msg)
-      details.append(A2UIErrorDetail(path: path, code: code, message: msg))
-    }
-    let errorMessage =
-      leafMessages.isEmpty
-      ? (result.errors?.first?.message ?? "Validation failed for function '\(name)'")
-      : leafMessages.joined(separator: "; ")
-    if details.isEmpty {
-      details.append(
-        A2UIErrorDetail(
-          path: "functions.\(name)",
-          code: "invalid_value",
-          message: errorMessage
-        )
-      )
-    }
-    return A2UIValidationError(errorMessage, details: details)
   }
 
   func assertFunctionIdentifiers(
@@ -1341,52 +1156,29 @@ public final class PayloadValidator: Sendable {
     return resolveLocalRef("#" + tokens.joined(separator: "/"), in: document)
   }
 
-  private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {
-    args.values.contains(where: { isDynamicExpression($0) })
-  }
-
-  private func isDynamicExpression(_ value: JSONValue) -> Bool {
-    switch value {
-    case .object(let dict):
-      if dict["path"] != nil
-        || dict["@path"] != nil
-        || dict["call"] != nil
-        || dict["@call"] != nil
-        || dict["function"] != nil
-      {
-        return true
-      }
-      return dict.values.contains(where: { isDynamicExpression($0) })
-    case .array(let items):
-      return items.contains(where: { isDynamicExpression($0) })
-    default:
-      return false
-    }
-  }
-
   // MARK: - Theme Validation
 
-  /// Validates a surface theme dictionary against the catalog's theme schema.
+  /// Validates a surface theme dictionary against the catalog's surface properties / theme schema.
   ///
-  /// If the catalog declares no `themeSchema`, any theme is accepted.
+  /// If the catalog declares no `surfaceProperties` or `themeSchema`, any theme is accepted.
   ///
   /// - Parameter theme: The theme dictionary supplied on `createSurface`.
-  /// - Throws: `A2UIValidationError` if the theme fails schema validation.
+  /// - Throws: `A2UIValidationError` if the theme fails validation.
   public func validateTheme(_ theme: [String: JSONValue]?) throws {
     guard let theme else { return }
     let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: theme))
     try validateTheme(instance)
   }
 
-  /// Validates a surface theme `JSONValue` against the catalog's theme schema.
+  /// Validates a surface theme `JSONValue` against the catalog's surface properties / theme schema.
   ///
-  /// If the catalog declares no `themeSchema`, any theme object is accepted.
+  /// If the catalog declares no `surfaceProperties` or `themeSchema`, any theme object is accepted.
   ///
   /// - Parameter theme: The theme `JSONValue` supplied on `createSurface`.
-  /// - Throws: `A2UIValidationError` if the theme is not an object or fails schema validation.
+  /// - Throws: `A2UIValidationError` if the theme is not an object or fails validation.
   public func validateTheme(_ theme: JSONValue) throws {
     guard theme != .null else { return }
-    guard theme.objectValue != nil else {
+    guard let themeObj = theme.objectValue else {
       throw A2UIValidationError(
         "Theme payload must be an object",
         details: [
@@ -1399,89 +1191,19 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    if catalog.hasCanonicalSurfaceProperties,
-      let surfaceProps = catalog.surfaceProperties,
-      let themeObj = theme.objectValue
-    {
-      let errors = ModelPayloadValidator.validateSurfaceProperties(
-        themeObj,
-        definition: surfaceProps,
-        types: catalog.types,
-        protocolVersion: effectiveProtocolVersion
-      )
-      guard !errors.isEmpty else { return }
-      let errorMessage = errors.map(\.message).joined(separator: "; ")
-      throw A2UIValidationError(errorMessage, details: errors)
-    }
-
-    guard let themeSchema = catalog.themeSchema else { return }
-    let validationResult = themeSchema.validate(theme, at: .init())
-    guard !validationResult.isValid else { return }
-    throw buildThemeSchemaValidationError(validationResult)
-  }
-
-  private func buildThemeSchemaValidationError(
-    _ validationResult: JSONSchema.ValidationResult
-  ) -> A2UIValidationError {
-    let leafErrors = (validationResult.errors ?? []).flatMap { extractLeafErrors(from: $0) }
-    var details: [A2UIErrorDetail] = []
-    var messages: [String] = []
-    for leaf in leafErrors {
-      let pointer = leaf.instanceLocation.jsonPointerString
-      let trimmed = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
-      let path = trimmed.isEmpty ? "theme" : "theme.\(trimmed)"
-      let code = leaf.keyword == "required" ? "missing_field" : "invalid_value"
-      let msg = trimmed.isEmpty ? leaf.message : "\(trimmed): \(leaf.message)"
-      messages.append(msg)
-      details.append(A2UIErrorDetail(path: path, code: code, message: msg))
-    }
-    let errorMessage =
-      messages.isEmpty
-      ? (validationResult.errors?.first?.message
-        ?? "Surface theme failed catalog theme schema validation")
-      : messages.joined(separator: "; ")
-    if details.isEmpty {
-      details.append(A2UIErrorDetail(path: "theme", code: "invalid_value", message: errorMessage))
-    }
-    return A2UIValidationError(errorMessage, details: details)
+    guard let surfaceProps = catalog.surfaceProperties else { return }
+    let errors = ModelPayloadValidator.validateSurfaceProperties(
+      themeObj,
+      definition: surfaceProps,
+      types: catalog.types,
+      protocolVersion: effectiveProtocolVersion
+    )
+    guard !errors.isEmpty else { return }
+    let errorMessage = errors.map(\.message).joined(separator: "; ")
+    throw A2UIValidationError(errorMessage, details: errors)
   }
 
   // MARK: - Helpers
-
-  /// Checks a component's accessibility attributes against `AccessibilityAttributes`.
-  ///
-  /// - Parameters:
-  ///   - accessibility: The accessibility attributes.
-  ///   - key: The component key that holds them: `@accessibility`, or legacy `accessibility`.
-  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `key`.
-  private func validateAccessibility(
-    _ accessibility: JSONValue,
-    key: String = "accessibility"
-  ) throws {
-    let version =
-      config.protocolVersion
-      ?? catalog.a2uiProtocolVersion
-      ?? (catalog.isAtLeastV10 ? .v10 : .v091)
-    let schema: Schema
-    switch version {
-    case .v09, .v091:
-      schema = Self.v09AccessibilitySchema
-    case .v10:
-      schema = Self.v10AccessibilitySchema
-    }
-    let result = schema.validate(accessibility)
-    guard !result.isValid else { return }
-
-    let message = "Field '\(key)' must match AccessibilityAttributes"
-    let details = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }.map { leaf in
-      A2UIErrorDetail(
-        path: "\(key)\(leaf.instanceLocation.jsonPointerString)",
-        code: "invalid_value",
-        message: leaf.message.isEmpty ? message : leaf.message
-      )
-    }
-    throw A2UIValidationError(message, details: details)
-  }
 
   private func extractLeafErrors(
     from error: JSONSchema.ValidationError

@@ -12,168 +12,251 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
 import OrderedJSON
 
-/// Direct validator and argument normalizer operating on canonical ``ComponentDefinition``,
+/// Direct in-memory payload validator operating on canonical ``ComponentDefinition``,
 /// ``FunctionDefinition``, ``SurfacePropertiesDefinition``, and ``TypeDefinition`` values.
 ///
-/// Avoids runtime JSON Schema AST rewriting and `Schema(...)` recompilation for dynamic function
-/// arguments, nullable local function arguments, and unknown-property filtering.
-enum ModelPayloadValidator {
-  private struct Context {
+/// Replaces runtime JSON Schema AST walking and dynamic `Schema` recompilation while keeping a
+/// targeted `JSONSchema.Schema` escape hatch solely for legacy `.rawJSONSchema` fragments.
+internal enum ModelPayloadValidator {
+  private struct ValidationContext {
     let types: [String: TypeDefinition]
-    let isV10: Bool
-    let allowUnknownProperties: Bool
+    let protocolVersion: A2UIProtocolVersion
+    /// `ValidationConfig.allowUnknownElements` — NEVER polluted by component-level
+    /// `allowsAdditionalProperties`.
+    let allowUnknownElements: Bool
     let allowDynamicExpressions: Bool
     let allowNullValues: Bool
     let pathSeparator: String
-    let messagePrefix: String
+
+    var isV10: Bool { protocolVersion.isAtLeastV10 }
+
+    func childPath(_ base: String, key: String) -> String {
+      base.isEmpty ? key : "\(base)\(pathSeparator)\(key)"
+    }
   }
 
-  private static let v09ValidReturnTypes: Set<String> = [
-    "string", "number", "boolean", "array", "object", "any", "void",
-  ]
+  // MARK: - Declarative Protocol Built-In TypeDefinitions
+
+  private static let childListType: TypeDefinition = .union(
+    variants: [
+      .array(items: .child()),
+      .object(
+        properties: [
+          .child("componentId", required: true),
+          .string("path", required: true),
+        ],
+        additionalProperties: .disallowed
+      ),
+    ],
+    exclusive: true
+  )
+
+  private static let v10ActionType: TypeDefinition = .union(
+    variants: [
+      .object(
+        properties: [
+          .object(
+            "event",
+            properties: [
+              .string("name", required: true),
+              .string("userMessage", dynamic: true),
+              .object(
+                "context", additionalProperties: .typed(.any(dynamic: true, nullable: false))),
+            ],
+            additionalProperties: .disallowed,
+            required: true
+          )
+        ],
+        additionalProperties: .disallowed
+      ),
+      .object(
+        properties: [.functionCall("functionCall", required: true)],
+        additionalProperties: .disallowed
+      ),
+    ],
+    exclusive: true
+  )
+
+  private static let v09ActionType: TypeDefinition = .union(
+    variants: [
+      .object(
+        properties: [
+          .object(
+            "event",
+            properties: [
+              .string("name", required: true),
+              .object(
+                "context", additionalProperties: .typed(.any(dynamic: true, nullable: false))),
+            ],
+            additionalProperties: .disallowed,
+            required: true
+          )
+        ],
+        additionalProperties: .disallowed
+      ),
+      .object(
+        properties: [.functionCall("functionCall", required: true)],
+        additionalProperties: .disallowed
+      ),
+    ],
+    exclusive: true
+  )
+
+  private static let v10CheckRuleType: TypeDefinition = .object(
+    properties: [
+      .union(
+        "condition",
+        variants: [.dataBinding(), .functionCall()],
+        exclusive: true,
+        required: true
+      ),
+      .string("message"),
+    ],
+    additionalProperties: .disallowed
+  )
+
+  private static let v09CheckRuleType: TypeDefinition = .object(
+    properties: [
+      .boolean("condition", dynamic: true, required: true),
+      .string("message", required: true),
+    ],
+    additionalProperties: .disallowed
+  )
+
+  private static let v10AccessibilityType: TypeDefinition = .object(
+    properties: [
+      .string("label", dynamic: true),
+      .string("description", dynamic: true),
+      .enum("live", values: [.string("off"), .string("polite"), .string("assertive")]),
+      .boolean("hidden", dynamic: true),
+    ],
+    additionalProperties: .disallowed
+  )
+
+  private static let v09AccessibilityType: TypeDefinition = .object(
+    properties: [
+      .string("label", dynamic: true),
+      .string("description", dynamic: true),
+    ],
+    additionalProperties: .allowed
+  )
 
   // MARK: - Component Validation
 
-  static func validateComponentProperties(
+  /// Validates a component's own properties (excluding protocol envelope/mixin keys) against its
+  /// canonical ``ComponentDefinition``.
+  internal static func validateComponentProperties(
     _ properties: [String: JSONValue],
     definition: ComponentDefinition,
     types: [String: TypeDefinition],
     protocolVersion: A2UIProtocolVersion,
     allowUnknownElements: Bool
   ) -> [A2UIErrorDetail] {
-    let context = Context(
+    let context = ValidationContext(
       types: types,
-      isV10: protocolVersion.isAtLeastV10,
-      allowUnknownProperties: allowUnknownElements || definition.allowsAdditionalProperties,
+      protocolVersion: protocolVersion,
+      allowUnknownElements: allowUnknownElements,
       allowDynamicExpressions: false,
       allowNullValues: false,
-      pathSeparator: "/",
-      messagePrefix: "Validation failed for component '\(definition.name)'"
+      pathSeparator: "."
     )
     var errors: [A2UIErrorDetail] = []
-
-    for param in definition.parameters where param.required {
-      if properties[param.name] == nil {
-        errors.append(
-          A2UIErrorDetail(
-            path: param.name,
-            code: "missing_field",
-            message: "\(context.messagePrefix) at '\(param.name)': "
-              + "Missing required property '\(param.name)'."
-          )
-        )
+    let ordered = OrderedDictionary(
+      uniqueKeysWithValues: properties.keys.sorted().compactMap { k in
+        properties[k].map { (k, $0) }
       }
-    }
-
-    for group in definition.atLeastOneOf {
-      if !group.contains(where: { properties[$0] != nil }) {
-        let joined = group.joined(separator: ", ")
-        errors.append(
-          A2UIErrorDetail(
-            path: "/\(definition.name)",
-            code: "missing_field",
-            message: "\(context.messagePrefix): At least one of [\(joined)] is required."
-          )
-        )
-      }
-    }
-
-    if !context.allowUnknownProperties {
-      let declaredNames = Set(definition.parameters.map(\.name))
-      for key in properties.keys.sorted() where !declaredNames.contains(key) {
-        errors.append(
-          A2UIErrorDetail(
-            path: key,
-            code: "invalid_value",
-            message: "\(context.messagePrefix) at '\(key)': Unknown property '\(key)'."
-          )
-        )
-      }
-    }
-
-    for param in definition.parameters {
-      guard let value = properties[param.name] else { continue }
-      validateType(
-        value,
-        against: param.type,
-        path: param.name,
-        context: context,
-        visitedRefs: [],
-        into: &errors
-      )
-    }
-
+    )
+    validateObjectMembers(
+      ordered,
+      properties: definition.parameters,
+      additionalProperties: definition.allowsAdditionalProperties ? .allowed : .disallowed,
+      atLeastOneOf: definition.atLeastOneOf,
+      allowUnknownHere: allowUnknownElements,
+      subjectPrefix: "Validation failed for component '\(definition.name)': ",
+      path: "",
+      context: context,
+      into: &errors
+    )
     return errors
   }
 
-  /// Validates a component's `@checks` / `checks` mixin value against `[CheckRule]`.
-  static func validateChecks(
+  /// Validates a component's `@accessibility` / `accessibility` mixin value.
+  internal static func validateAccessibility(
+    _ value: JSONValue,
+    key: String,
+    protocolVersion: A2UIProtocolVersion,
+    allowUnknownElements: Bool
+  ) -> [A2UIErrorDetail] {
+    let context = ValidationContext(
+      types: [:],
+      protocolVersion: protocolVersion,
+      allowUnknownElements: allowUnknownElements,
+      allowDynamicExpressions: false,
+      allowNullValues: false,
+      pathSeparator: "/"
+    )
+    var errors: [A2UIErrorDetail] = []
+    validateType(
+      value,
+      type: protocolVersion.isAtLeastV10 ? v10AccessibilityType : v09AccessibilityType,
+      path: key,
+      context: context,
+      visitedRefs: [],
+      into: &errors
+    )
+    return errors
+  }
+
+  /// Validates a component's `@checks` / `checks` mixin array against `CheckRule`.
+  internal static func validateChecks(
     _ value: JSONValue,
     componentType: String,
     key: String,
     protocolVersion: A2UIProtocolVersion,
     allowUnknownElements: Bool
   ) -> [A2UIErrorDetail] {
-    let context = Context(
+    let context = ValidationContext(
       types: [:],
-      isV10: protocolVersion.isAtLeastV10,
-      allowUnknownProperties: allowUnknownElements,
+      protocolVersion: protocolVersion,
+      allowUnknownElements: allowUnknownElements,
       allowDynamicExpressions: false,
       allowNullValues: false,
-      pathSeparator: "/",
-      messagePrefix: "Validation failed for component '\(componentType)'"
+      pathSeparator: "."
     )
     var errors: [A2UIErrorDetail] = []
-    validateType(
-      value,
-      against: .array(items: .checkRule()),
-      path: key,
-      context: context,
-      visitedRefs: [],
-      into: &errors
-    )
-    return errors
-  }
-
-  /// Validates a component's `@accessibility` / `accessibility` mixin value against
-  /// `AccessibilityAttributes`.
-  static func validateAccessibility(
-    _ value: JSONValue,
-    key: String,
-    protocolVersion: A2UIProtocolVersion,
-    allowUnknownElements: Bool
-  ) -> [A2UIErrorDetail] {
-    let context = Context(
-      types: [:],
-      isV10: protocolVersion.isAtLeastV10,
-      allowUnknownProperties: allowUnknownElements,
-      allowDynamicExpressions: false,
-      allowNullValues: false,
-      pathSeparator: "/",
-      messagePrefix: "Field '\(key)' must match AccessibilityAttributes"
-    )
-    var errors: [A2UIErrorDetail] = []
-    validateType(
-      value,
-      against: .accessibility(),
-      path: key,
-      context: context,
-      visitedRefs: [],
-      into: &errors
-    )
+    guard case .array(let items) = value else {
+      return [
+        A2UIErrorDetail(
+          path: key,
+          code: "type_mismatch",
+          message: "Validation failed for component '\(componentType)': '\(key)' must be an array"
+        )
+      ]
+    }
+    let ruleType = protocolVersion.isAtLeastV10 ? v10CheckRuleType : v09CheckRuleType
+    for (index, item) in items.enumerated() {
+      validateType(
+        item,
+        type: ruleType,
+        path: "\(key)[\(index)]",
+        context: context,
+        visitedRefs: [],
+        into: &errors
+      )
+    }
     return errors
   }
 
   // MARK: - Function Argument Validation
 
-  static func validateFunctionArguments(
-    _ args: [String: JSONValue],
+  /// Validates a function's argument dictionary against its canonical ``FunctionDefinition``.
+  internal static func validateFunctionArguments(
+    _ arguments: [String: JSONValue],
     definition: FunctionDefinition,
     types: [String: TypeDefinition],
     protocolVersion: A2UIProtocolVersion,
@@ -181,178 +264,106 @@ enum ModelPayloadValidator {
     allowNullValues: Bool
   ) -> [A2UIErrorDetail] {
     let basePath = "functions.\(definition.name)"
-    let context = Context(
-      types: types,
-      isV10: protocolVersion.isAtLeastV10,
-      allowUnknownProperties: false,
-      allowDynamicExpressions: allowDynamicExpressions,
-      allowNullValues: allowNullValues,
-      pathSeparator: ".",
-      messagePrefix: "Validation failed for function '\(definition.name)'"
+    let ordered = OrderedDictionary(
+      uniqueKeysWithValues: arguments.keys.sorted().compactMap { k in
+        arguments[k].map { (k, $0) }
+      }
     )
-    var errors: [A2UIErrorDetail] = []
-
-    for param in definition.parameters where param.required {
-      if args[param.name] == nil {
-        errors.append(
-          A2UIErrorDetail(
-            path: "\(basePath).\(param.name)",
-            code: "missing_field",
-            message: "Missing required argument '\(param.name)'."
-          )
-        )
-      }
-    }
-
-    for group in definition.atLeastOneOf {
-      if !group.contains(where: { args[$0] != nil }) {
-        let joined = group.joined(separator: ", ")
-        errors.append(
-          A2UIErrorDetail(
-            path: basePath,
-            code: "invalid_value",
-            message: "At least one of [\(joined)] is required."
-          )
-        )
-      }
-    }
-
-    let declaredNames = Set(definition.parameters.map(\.name))
-    for key in args.keys.sorted() where !declaredNames.contains(key) {
-      let argPath = "\(basePath).\(key)"
-      switch definition.additionalParameters {
-      case .disallowed:
-        errors.append(
-          A2UIErrorDetail(
-            path: argPath,
-            code: "invalid_value",
-            message: "\(key): Additional argument '\(key)' is not allowed."
-          )
-        )
-      case .allowed:
-        break
-      case .typed(let extraType):
-        if let value = args[key] {
-          validateType(
-            value,
-            against: extraType,
-            path: argPath,
-            context: context,
-            visitedRefs: [],
-            into: &errors
-          )
-        }
-      }
-    }
-
-    for param in definition.parameters {
-      guard let value = args[param.name] else { continue }
-      validateType(
-        value,
-        against: param.type,
-        path: "\(basePath).\(param.name)",
-        context: context,
-        visitedRefs: [],
-        into: &errors
+    if let rawRoot = definition.rawJSONSchema {
+      return validateRawSchema(
+        .object(ordered),
+        rawSchema: rawRoot,
+        path: basePath,
+        allowDynamicExpressions: allowDynamicExpressions,
+        allowNullValues: allowNullValues,
+        isV10: protocolVersion.isAtLeastV10
       )
     }
-
+    let context = ValidationContext(
+      types: types,
+      protocolVersion: protocolVersion,
+      allowUnknownElements: false,
+      allowDynamicExpressions: allowDynamicExpressions,
+      allowNullValues: allowNullValues,
+      pathSeparator: "."
+    )
+    var errors: [A2UIErrorDetail] = []
+    validateObjectMembers(
+      ordered,
+      properties: definition.parameters,
+      additionalProperties: definition.additionalParameters,
+      atLeastOneOf: definition.atLeastOneOf,
+      allowUnknownHere: false,
+      subjectPrefix: "Validation failed for function '\(definition.name)': ",
+      path: basePath,
+      context: context,
+      into: &errors
+    )
     return errors
   }
 
   // MARK: - Surface Properties / Theme Validation
 
-  static func validateSurfaceProperties(
+  /// Validates a surface theme object against a canonical ``SurfacePropertiesDefinition``.
+  internal static func validateSurfaceProperties(
     _ theme: OrderedDictionary<String, JSONValue>,
     definition: SurfacePropertiesDefinition,
     types: [String: TypeDefinition],
     protocolVersion: A2UIProtocolVersion
   ) -> [A2UIErrorDetail] {
-    let context = Context(
-      types: types,
-      isV10: protocolVersion.isAtLeastV10,
-      allowUnknownProperties: false,
-      allowDynamicExpressions: false,
-      allowNullValues: false,
-      pathSeparator: ".",
-      messagePrefix: "Surface theme validation failed"
-    )
-    var errors: [A2UIErrorDetail] = []
-
-    for prop in definition.properties where prop.required {
-      if theme[prop.name] == nil {
-        errors.append(
-          A2UIErrorDetail(
-            path: "theme.\(prop.name)",
-            code: "missing_field",
-            message: "\(prop.name): Missing required property '\(prop.name)'."
-          )
-        )
-      }
-    }
-
-    let declaredNames = Set(definition.properties.map(\.name))
-    for key in theme.keys where !declaredNames.contains(key) {
-      let propPath = "theme.\(key)"
-      switch definition.additionalProperties {
-      case .disallowed:
-        errors.append(
-          A2UIErrorDetail(
-            path: propPath,
-            code: "invalid_value",
-            message: "\(key): Additional property '\(key)' is not allowed."
-          )
-        )
-      case .allowed:
-        break
-      case .typed(let extraType):
-        if let value = theme[key] {
-          validateType(
-            value,
-            against: extraType,
-            path: propPath,
-            context: context,
-            visitedRefs: [],
-            into: &errors
-          )
-        }
-      }
-    }
-
-    for prop in definition.properties {
-      guard let value = theme[prop.name] else { continue }
-      validateType(
-        value,
-        against: prop.type,
-        path: "theme.\(prop.name)",
-        context: context,
-        visitedRefs: [],
-        into: &errors
+    if let rawRoot = definition.rawJSONSchema {
+      return validateRawSchema(
+        .object(theme),
+        rawSchema: rawRoot,
+        path: "theme",
+        allowDynamicExpressions: false,
+        allowNullValues: false,
+        isV10: protocolVersion.isAtLeastV10
       )
     }
-
+    let context = ValidationContext(
+      types: types,
+      protocolVersion: protocolVersion,
+      allowUnknownElements: false,
+      allowDynamicExpressions: false,
+      allowNullValues: false,
+      pathSeparator: "."
+    )
+    var errors: [A2UIErrorDetail] = []
+    validateObjectMembers(
+      theme,
+      properties: definition.properties,
+      additionalProperties: definition.additionalProperties,
+      atLeastOneOf: [],
+      allowUnknownHere: false,
+      subjectPrefix: "",
+      path: "theme",
+      context: context,
+      into: &errors
+    )
     return errors
   }
 
-  // MARK: - Canonical Argument Normalization (Coercion & Defaults)
+  // MARK: - DataContext Coercion & Defaults Helpers
 
-  /// Coerces `ValidationResult` objects into booleans for parameters typed as boolean /
-  /// `DynamicBoolean`, recursively across arrays and objects.
-  static func coerceValidationResults(
+  /// Coerces `ValidationResult` objects into booleans wherever a function parameter expects a
+  /// boolean (including nested arrays and objects).
+  internal static func coerceValidationResults(
     in arguments: [String: JSONValue],
     definition: FunctionDefinition,
     types: [String: TypeDefinition]
   ) -> [String: JSONValue] {
+    guard !arguments.isEmpty else { return arguments }
     var result = arguments
-    for param in definition.parameters {
-      if let value = result[param.name] {
-        result[param.name] = coerceValue(value, type: param.type, types: types, visitedRefs: [])
-      }
-    }
-    if case .typed(let extraType) = definition.additionalParameters {
-      let declared = Set(definition.parameters.map(\.name))
-      for (key, value) in result where !declared.contains(key) {
-        result[key] = coerceValue(value, type: extraType, types: types, visitedRefs: [])
+    let paramByName = Dictionary(
+      definition.parameters.map { ($0.name, $0.type) },
+      uniquingKeysWith: { _, last in last }
+    )
+    for (key, value) in arguments {
+      if let paramType = paramByName[key] {
+        result[key] = coerceValue(value, for: paramType, types: types, visitedRefs: [])
+      } else if let extraType = definition.additionalParameters.typedSchema {
+        result[key] = coerceValue(value, for: extraType, types: types, visitedRefs: [])
       }
     }
     return result
@@ -360,115 +371,93 @@ enum ModelPayloadValidator {
 
   private static func coerceValue(
     _ value: JSONValue,
-    type: TypeDefinition,
+    for type: TypeDefinition,
     types: [String: TypeDefinition],
     visitedRefs: Set<String>
   ) -> JSONValue {
-    if isDynamicBooleanType(type, types: types, visitedRefs: visitedRefs) {
+    if isBooleanExpectingType(type, types: types, visitedRefs: visitedRefs) {
       return .boolean(value.coercedDynamicBoolean)
     }
-    switch type {
-    case .array(_, let items, _, _, _, _, _, _, _):
-      guard let items, let arr = value.arrayValue else { return value }
-      return .array(
-        arr.map { coerceValue($0, type: items, types: types, visitedRefs: visitedRefs) })
-    case .object(_, let properties, let additional, _, _, _, _, _):
-      guard case .object(var members) = value else { return value }
-      let declared = Set(properties.map(\.name))
-      for prop in properties {
-        if let memberVal = members[prop.name] {
-          members[prop.name] = coerceValue(
-            memberVal,
-            type: prop.type,
-            types: types,
-            visitedRefs: visitedRefs
-          )
+    switch type.kind {
+    case .array(_, let items, _, _, _, _):
+      guard let items, case .array(let elements) = value else { return value }
+      return .array(elements.map { coerceValue($0, for: items, types: types, visitedRefs: []) })
+    case .object(_, let props, let additional, _, _):
+      guard case .object(var dict) = value else { return value }
+      let propMap = Dictionary(
+        props.map { ($0.name, $0.type) },
+        uniquingKeysWith: { _, last in last }
+      )
+      for (k, v) in dict {
+        if let propType = propMap[k] {
+          dict[k] = coerceValue(v, for: propType, types: types, visitedRefs: [])
+        } else if let extraType = additional.typedSchema {
+          dict[k] = coerceValue(v, for: extraType, types: types, visitedRefs: [])
         }
       }
-      if case .typed(let extraType) = additional {
-        for (key, memberVal) in members where !declared.contains(key) {
-          members[key] = coerceValue(
-            memberVal,
-            type: extraType,
-            types: types,
-            visitedRefs: visitedRefs
-          )
-        }
-      }
-      return .object(members)
-    case .ref(let refName, _, _, _, _):
+      return .object(dict)
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else { return value }
       var next = visitedRefs
       next.insert(refName)
-      return coerceValue(value, type: target, types: types, visitedRefs: next)
+      return coerceValue(value, for: target, types: types, visitedRefs: next)
     default:
       return value
     }
   }
 
-  private static func isDynamicBooleanType(
+  private static func isBooleanExpectingType(
     _ type: TypeDefinition,
     types: [String: TypeDefinition],
     visitedRefs: Set<String>
   ) -> Bool {
-    switch type {
+    switch type.kind {
     case .boolean:
       return true
-    case .union(let variants, _, _, _, _, _, _):
+    case .union(let variants, _, _, _):
       let hasBool = variants.contains {
-        isDynamicBooleanType($0, types: types, visitedRefs: visitedRefs)
+        isBooleanExpectingType($0, types: types, visitedRefs: visitedRefs)
       }
-      let onlyBoolOrDynamic = variants.allSatisfy { variant in
-        if isDynamicBooleanType(variant, types: types, visitedRefs: visitedRefs) {
-          return true
-        }
-        switch variant {
-        case .dataBinding, .functionCall:
-          return true
-        default:
-          return false
+      let onlyBoolOrExpr = variants.allSatisfy { variant in
+        if isBooleanExpectingType(variant, types: types, visitedRefs: visitedRefs) { return true }
+        switch variant.kind {
+        case .dataBinding, .functionCall: return true
+        default: return false
         }
       }
-      return hasBool && onlyBoolOrDynamic
-    case .ref(let refName, _, _, _, _):
+      return hasBool && onlyBoolOrExpr
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else { return false }
       var next = visitedRefs
       next.insert(refName)
-      return isDynamicBooleanType(target, types: types, visitedRefs: next)
+      return isBooleanExpectingType(target, types: types, visitedRefs: next)
+    case .rawJSONSchema(let raw):
+      return raw["type"]?.stringValue == "boolean"
+        || raw["$ref"]?.stringValue?.hasSuffix("/$defs/DynamicBoolean") == true
     default:
       return false
     }
   }
 
-  /// Applies declared parameter default values recursively to function arguments (for agent-routed
-  /// function calls).
-  static func applyingArgumentDefaults(
+  /// Applies default values declared on a ``FunctionDefinition``'s parameters (and nested objects).
+  internal static func applyingArgumentDefaults(
     of definition: FunctionDefinition,
     types: [String: TypeDefinition],
     to arguments: [String: JSONValue]
   ) -> [String: JSONValue] {
-    applyingParameterDefaults(definition.parameters, types: types, to: arguments, visitedRefs: [])
-  }
-
-  private static func applyingParameterDefaults(
-    _ parameters: [ParameterDefinition],
-    types: [String: TypeDefinition],
-    to values: [String: JSONValue],
-    visitedRefs: Set<String>
-  ) -> [String: JSONValue] {
-    var result = values
-    for param in parameters {
+    var result = arguments
+    for param in definition.parameters {
       if let existing = result[param.name] {
         result[param.name] = applyingTypeDefaults(
-          param.type,
+          of: param.type,
           types: types,
           to: existing,
-          visitedRefs: visitedRefs
+          visitedRefs: []
         )
-      } else if let defaultValue = resolvedDefault(
-        for: param.type,
+      } else if let defaultValue = resolvedDefaultValue(
+        of: param.type,
         types: types,
-        visitedRefs: visitedRefs
+        visitedRefs: []
       ) {
         result[param.name] = defaultValue
       }
@@ -476,312 +465,333 @@ enum ModelPayloadValidator {
     return result
   }
 
+  private static func resolvedDefaultValue(
+    of type: TypeDefinition,
+    types: [String: TypeDefinition],
+    visitedRefs: Set<String>
+  ) -> JSONValue? {
+    if let direct = type.defaultJSONValue { return direct }
+    if case .ref(let refName, _) = type.kind, !visitedRefs.contains(refName),
+      let target = types[refName]
+    {
+      var next = visitedRefs
+      next.insert(refName)
+      return resolvedDefaultValue(of: target, types: types, visitedRefs: next)
+    }
+    return nil
+  }
+
   private static func applyingTypeDefaults(
-    _ type: TypeDefinition,
+    of type: TypeDefinition,
     types: [String: TypeDefinition],
     to value: JSONValue,
     visitedRefs: Set<String>
   ) -> JSONValue {
-    switch type {
-    case .object(_, let properties, _, _, _, _, _, _):
-      guard case .object(var members) = value, !properties.isEmpty else { return value }
-      let dict = Dictionary(uniqueKeysWithValues: members.map { ($0.key, $0.value) })
-      let completed = applyingParameterDefaults(
-        properties,
-        types: types,
-        to: dict,
-        visitedRefs: visitedRefs
-      )
-      for (key, member) in completed {
-        members[key] = member
+    switch type.kind {
+    case .object(_, let props, _, _, _):
+      guard case .object(var dict) = value, !props.isEmpty else { return value }
+      for param in props {
+        if let existing = dict[param.name] {
+          dict[param.name] = applyingTypeDefaults(
+            of: param.type,
+            types: types,
+            to: existing,
+            visitedRefs: []
+          )
+        } else if let defaultValue = resolvedDefaultValue(
+          of: param.type,
+          types: types,
+          visitedRefs: []
+        ) {
+          dict[param.name] = defaultValue
+        }
       }
-      return .object(members)
-    case .ref(let refName, _, _, _, _):
+      return .object(dict)
+    case .ref(let refName, _):
       guard !visitedRefs.contains(refName), let target = types[refName] else { return value }
       var next = visitedRefs
       next.insert(refName)
-      return applyingTypeDefaults(target, types: types, to: value, visitedRefs: next)
+      return applyingTypeDefaults(of: target, types: types, to: value, visitedRefs: next)
     default:
       return value
     }
   }
 
-  private static func resolvedDefault(
-    for type: TypeDefinition,
-    types: [String: TypeDefinition],
-    visitedRefs: Set<String>
-  ) -> JSONValue? {
-    if let direct = type.defaultJSONValue {
-      return direct
-    }
-    if case .ref(let refName, _, _, _, _) = type,
-      !visitedRefs.contains(refName),
-      let target = types[refName]
-    {
-      var next = visitedRefs
-      next.insert(refName)
-      return resolvedDefault(for: target, types: types, visitedRefs: next)
-    }
-    return nil
-  }
+  // MARK: - Unified Object & Type Validation
 
-  // MARK: - Core Recursive Type Validation
+  private static func validateObjectMembers(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    properties: [ParameterDefinition],
+    additionalProperties: AdditionalProperties,
+    atLeastOneOf: [[String]],
+    allowUnknownHere: Bool,
+    subjectPrefix: String,
+    path: String,
+    context: ValidationContext,
+    into errors: inout [A2UIErrorDetail]
+  ) {
+    let propMap = Dictionary(
+      properties.map { ($0.name, $0) },
+      uniquingKeysWith: { _, last in last }
+    )
+
+    for param in properties where param.required && dict[param.name] == nil {
+      let fieldPath = context.childPath(path, key: param.name)
+      errors.append(
+        A2UIErrorDetail(
+          path: fieldPath,
+          code: "missing_field",
+          message: "\(subjectPrefix)missing required property '\(param.name)'"
+        )
+      )
+    }
+
+    for group in atLeastOneOf where !group.contains(where: { dict[$0] != nil }) {
+      let names = group.joined(separator: ", ")
+      errors.append(
+        A2UIErrorDetail(
+          path: path,
+          code: "missing_field",
+          message: "\(subjectPrefix)at least one of [\(names)] must be provided"
+        )
+      )
+    }
+
+    for (key, value) in dict {
+      let fieldPath = context.childPath(path, key: key)
+      if let param = propMap[key] {
+        // Descending into a strict JSON sub-value resets `visitedRefs`.
+        validateType(
+          value,
+          type: param.type,
+          path: fieldPath,
+          context: context,
+          visitedRefs: [],
+          into: &errors
+        )
+      } else {
+        switch additionalProperties {
+        case .allowed:
+          break
+        case .disallowed:
+          if !allowUnknownHere {
+            errors.append(
+              A2UIErrorDetail(
+                path: fieldPath,
+                code: "invalid_value",
+                message: "\(subjectPrefix)unexpected property '\(key)'"
+              )
+            )
+          }
+        case .typed(let extraType):
+          validateType(
+            value,
+            type: extraType,
+            path: fieldPath,
+            context: context,
+            visitedRefs: [],
+            into: &errors
+          )
+        }
+      }
+    }
+  }
 
   private static func validateType(
     _ value: JSONValue,
-    against type: TypeDefinition,
+    type: TypeDefinition,
     path: String,
-    context: Context,
+    context: ValidationContext,
     visitedRefs: Set<String>,
     into errors: inout [A2UIErrorDetail]
   ) {
-    if context.allowNullValues && value == .null {
-      return
-    }
-    if context.allowDynamicExpressions && isAnyDynamicExpression(value) {
-      return
-    }
+    if context.allowNullValues && value == .null { return }
 
-    switch type {
-    case .string(let dynamic, let formats, let pattern, let minLength, let maxLength, _, _, _, _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "string") {
+    switch type.kind {
+    case .string(let dynamic, let formats, let pattern, let minL, let maxL, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "string")
+      {
         return
       }
-      guard let str = value.stringValue else {
-        appendError(path: path, message: "Expected a string.", context: context, into: &errors)
+      guard case .string(let str) = value else {
+        errors.append(typeError(path, expected: "a string"))
         return
       }
-      let codePointCount = str.unicodeScalars.count
-      if let minLength, codePointCount < minLength {
-        appendError(
-          path: path,
-          message: "String length \(codePointCount) is less than minimum \(minLength).",
-          context: context,
-          into: &errors
-        )
+      let length = str.unicodeScalars.count
+      if let minL, length < minL {
+        errors.append(valueError(path, "must be at least \(minL) character(s) long"))
       }
-      if let maxLength, codePointCount > maxLength {
-        appendError(
-          path: path,
-          message: "String length \(codePointCount) exceeds maximum \(maxLength).",
-          context: context,
-          into: &errors
-        )
+      if let maxL, length > maxL {
+        errors.append(valueError(path, "must be at most \(maxL) character(s) long"))
       }
       if let pattern, !matchesRegex(str, pattern: pattern) {
-        appendError(
-          path: path,
-          message: "String does not match pattern '\(pattern)'.",
-          context: context,
-          into: &errors
-        )
+        errors.append(valueError(path, "does not match pattern '\(pattern)'"))
       }
       if let formats, !formats.isEmpty, !formats.contains(where: { matchesFormat(str, format: $0) })
       {
-        let expected = formats.joined(separator: " | ")
-        appendError(
-          path: path,
-          message: "String '\(str)' does not match format '\(expected)'.",
-          context: context,
-          into: &errors
+        errors.append(
+          valueError(path, "does not match required format (\(formats.joined(separator: " | ")))")
         )
       }
 
-    case .number(let dynamic, let min, let max, _, _, _, _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "number") {
+    case .number(let dynamic, let minV, let maxV, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "number")
+      {
         return
       }
-      guard let num = value.doubleValue else {
-        appendError(path: path, message: "Expected a number.", context: context, into: &errors)
+      guard let num = value.doubleValue, num.isFinite else {
+        errors.append(typeError(path, expected: "a finite number"))
         return
       }
-      if let min, num < min {
-        appendError(
-          path: path,
-          message: "Value \(num) is less than minimum \(min).",
-          context: context,
-          into: &errors
-        )
+      if let minV, num < minV {
+        errors.append(valueError(path, "must be >= \(minV)"))
       }
-      if let max, num > max {
-        appendError(
-          path: path,
-          message: "Value \(num) exceeds maximum \(max).",
-          context: context,
-          into: &errors
-        )
+      if let maxV, num > maxV {
+        errors.append(valueError(path, "must be <= \(maxV)"))
       }
 
-    case .integer(let dynamic, let min, let max, _, _, _, _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "number") {
+    case .integer(let dynamic, let minV, let maxV, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "number")
+      {
         return
       }
       guard let intVal = value.intValue else {
-        appendError(path: path, message: "Expected an integer.", context: context, into: &errors)
+        errors.append(typeError(path, expected: "an integer"))
         return
       }
-      if let min, intVal < min {
-        appendError(
-          path: path,
-          message: "Value \(intVal) is less than minimum \(min).",
-          context: context,
-          into: &errors
-        )
+      if let minV, intVal < minV {
+        errors.append(valueError(path, "must be >= \(minV)"))
       }
-      if let max, intVal > max {
-        appendError(
-          path: path,
-          message: "Value \(intVal) exceeds maximum \(max).",
-          context: context,
-          into: &errors
-        )
+      if let maxV, intVal > maxV {
+        errors.append(valueError(path, "must be <= \(maxV)"))
       }
 
-    case .boolean(let dynamic, _, _, _, _):
-      if dynamic
-        && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "boolean")
+    case .boolean(let dynamic, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "boolean")
       {
         return
       }
-      guard value.boolValue != nil else {
-        appendError(path: path, message: "Expected a boolean.", context: context, into: &errors)
+      guard case .boolean = value else {
+        errors.append(typeError(path, expected: "a boolean"))
         return
       }
 
-    case .enum(let values, let valueType, let dynamic, _, _, _, _):
-      if dynamic
-        && isDynamicValueExpression(
-          value,
-          isV10: context.isV10,
-          v09ReturnType: valueType.rawValue
-        )
+    case .enum(let values, let valueType, let dynamic, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: valueType.rawValue)
       {
         return
       }
-      guard values.contains(where: { jsonScalarEquals($0, value) }) else {
-        appendError(
-          path: path,
-          message: "Value is not one of the allowed enum values.",
-          context: context,
-          into: &errors
-        )
+      guard values.contains(where: { CatalogDocumentCodec.jsonScalarEquals($0, value) }) else {
+        errors.append(valueError(path, "must be one of the allowed enum values"))
         return
       }
 
-    case .const(let expected, _, _, _):
-      guard jsonScalarEquals(expected, value) else {
-        appendError(
-          path: path,
-          message: "Value does not match required constant.",
-          context: context,
-          into: &errors
-        )
+    case .const(let expected):
+      if context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: nil)
+      {
+        return
+      }
+      guard CatalogDocumentCodec.jsonScalarEquals(value, expected) else {
+        errors.append(valueError(path, "must equal constant value"))
         return
       }
 
-    case .any(let dynamic, let nullable, _, _, _, _):
+    case .any(let dynamic, let nullable, _):
       if value == .null {
-        if !nullable {
-          appendError(
-            path: path,
-            message: "Value must not be null.",
-            context: context,
-            into: &errors
-          )
-        }
+        if !nullable { errors.append(valueError(path, "cannot be null")) }
         return
       }
-      if dynamic && !nullable {
-        if case .object(let dict) = value,
-          !isDataBinding(value, isV10: context.isV10),
-          !isFunctionCall(value, isV10: context.isV10, v09ReturnType: nil)
-        {
-          if context.isV10 {
-            for key in dict.keys where key.hasPrefix("@") && !key.hasPrefix("@@") {
-              appendError(
-                path: joinPath(path, key, separator: context.pathSeparator),
-                message: "Unescaped reserved key '\(key)' is not allowed in DynamicValue.",
-                context: context,
-                into: &errors
-              )
-            }
-          }
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: nil)
+      {
+        return
+      }
+      if dynamic && !nullable, case .object(let dict) = value {
+        if !context.isV10 {
+          // v0.9 DynamicValue forbids plain objects (only DataBinding / FunctionCall allowed).
+          errors.append(typeError(path, expected: "a valid v0.9 DynamicValue"))
+          return
+        }
+        // v1.0 DynamicValue forbids single-`@` reserved keys (escaped `@@` is permitted).
+        for key in dict.keys where key.hasPrefix("@") && !key.hasPrefix("@@") {
+          errors.append(
+            valueError(path, "plain DynamicValue object cannot contain reserved key '\(key)'"))
+          return
         }
       }
 
-    case .object(
-      let dynamic, let properties, let additionalProperties, let atLeastOneOf, _, _, _,
-      _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "object") {
+    case .object(let dynamic, let properties, let additional, let atLeastOneOf, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "object")
+      {
         return
       }
-      guard let dict = value.objectValue else {
-        appendError(path: path, message: "Expected an object.", context: context, into: &errors)
+      guard case .object(let dict) = value else {
+        errors.append(typeError(path, expected: "an object"))
         return
       }
-      validateObject(
+      validateObjectMembers(
         dict,
         properties: properties,
-        additionalProperties: additionalProperties,
+        additionalProperties: additional,
         atLeastOneOf: atLeastOneOf,
+        allowUnknownHere: context.allowUnknownElements,
+        subjectPrefix: "",
         path: path,
         context: context,
-        visitedRefs: visitedRefs,
         into: &errors
       )
 
-    case .array(let dynamic, let items, let minItems, let maxItems, let uniqueItems, _, _, _, _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "array") {
+    case .array(let dynamic, let items, let minI, let maxI, let unique, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: "array")
+      {
         return
       }
-      guard let array = value.arrayValue else {
-        appendError(path: path, message: "Expected an array.", context: context, into: &errors)
+      guard case .array(let array) = value else {
+        errors.append(typeError(path, expected: "an array"))
         return
       }
-      if let minItems, array.count < minItems {
-        appendError(
-          path: path,
-          message: "Array count \(array.count) is less than minimum \(minItems).",
-          context: context,
-          into: &errors
-        )
+      if let minI, array.count < minI {
+        errors.append(valueError(path, "must contain at least \(minI) item(s)"))
       }
-      if let maxItems, array.count > maxItems {
-        appendError(
-          path: path,
-          message: "Array count \(array.count) exceeds maximum \(maxItems).",
-          context: context,
-          into: &errors
-        )
+      if let maxI, array.count > maxI {
+        errors.append(valueError(path, "must contain at most \(maxI) item(s)"))
       }
-      if uniqueItems {
-        for i in array.indices {
-          for j in 0..<i where MetadataValidator.jsonEquals(array[i], array[j]) {
-            appendError(
-              path: joinPath(path, "\(i)", separator: context.pathSeparator),
-              message: "Array elements must be unique.",
-              context: context,
-              into: &errors
-            )
+      if unique {
+        var seen: [JSONValue] = []
+        for (idx, item) in array.enumerated() {
+          if seen.contains(where: { CatalogDocumentCodec.jsonScalarEquals($0, item) }) {
+            errors.append(valueError("\(path)[\(idx)]", "contains duplicate array item"))
             break
           }
+          seen.append(item)
         }
       }
       if let items {
-        for (index, element) in array.enumerated() {
+        for (idx, item) in array.enumerated() {
+          // Descending into a strict JSON sub-value resets `visitedRefs`.
           validateType(
-            element,
-            against: items,
-            path: joinPath(path, "\(index)", separator: context.pathSeparator),
+            item,
+            type: items,
+            path: "\(path)[\(idx)]",
             context: context,
-            visitedRefs: visitedRefs,
+            visitedRefs: [],
             into: &errors
           )
         }
       }
 
-    case .union(let variants, let exclusive, let dynamic, _, _, _, _):
-      if dynamic && isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: nil) {
+    case .union(let variants, let exclusive, let dynamic, _):
+      if dynamic || context.allowDynamicExpressions,
+        isDynamicValueExpression(value, isV10: context.isV10, v09ReturnType: nil)
+      {
         return
       }
       var matchCount = 0
@@ -789,7 +799,7 @@ enum ModelPayloadValidator {
         var candidateErrors: [A2UIErrorDetail] = []
         validateType(
           value,
-          against: variant,
+          type: variant,
           path: path,
           context: context,
           visitedRefs: visitedRefs,
@@ -797,346 +807,211 @@ enum ModelPayloadValidator {
         )
         if candidateErrors.isEmpty {
           matchCount += 1
+          if !exclusive { return }
         }
       }
-      if exclusive {
-        if matchCount != 1 {
-          let detail =
-            matchCount == 0
-            ? "Value did not match any union variant."
-            : "Value matched \(matchCount) exclusive union variants; expected exactly 1."
-          appendError(path: path, message: detail, context: context, into: &errors)
-        }
-      } else if matchCount == 0 {
-        appendError(
-          path: path,
-          message: "Value did not match any union variant.",
-          context: context,
-          into: &errors
-        )
+      if matchCount == 0 {
+        errors.append(valueError(path, "does not match any allowed union variant"))
+      } else if exclusive && matchCount > 1 {
+        errors.append(valueError(path, "matched multiple exclusive union variants"))
       }
 
     case .dataBinding:
       guard isDataBinding(value, isV10: context.isV10) else {
-        let key = context.isV10 ? "@path" : "path"
-        appendError(
-          path: path,
-          message: "Expected a DataBinding object with string '\(key)'.",
-          context: context,
-          into: &errors
-        )
-        return
+        errors.append(typeError(path, expected: "a DataBinding object"))
       }
 
     case .functionCall:
       guard isFunctionCall(value, isV10: context.isV10, v09ReturnType: nil) else {
-        let key = context.isV10 ? "@call" : "call"
-        appendError(
-          path: path,
-          message: "Expected a FunctionCall object with string '\(key)'.",
-          context: context,
-          into: &errors
-        )
-        return
+        errors.append(typeError(path, expected: "a FunctionCall object"))
       }
 
-    case .ref(let refName, _, _, _, _):
-      guard !visitedRefs.contains(refName), let target = context.types[refName] else { return }
-      var next = visitedRefs
-      next.insert(refName)
+    case .ref(let refName, _):
+      // Fail closed on same-value alias cycles and unresolved refs so `.union` never
+      // false-matches.
+      guard !visitedRefs.contains(refName) else {
+        errors.append(valueError(path, "cyclic local type reference '\(refName)'"))
+        return
+      }
+      guard let target = context.types[refName] else {
+        errors.append(valueError(path, "unresolved local type reference '\(refName)'"))
+        return
+      }
+      var nextVisited = visitedRefs
+      nextVisited.insert(refName)
       validateType(
         value,
-        against: target,
+        type: target,
         path: path,
         context: context,
-        visitedRefs: next,
+        visitedRefs: nextVisited,
         into: &errors
       )
 
     case .child:
-      guard value.stringValue != nil else {
-        appendError(
-          path: path,
-          message: "Expected a child component ID string.",
-          context: context,
-          into: &errors
-        )
-        return
+      guard case .string = value else {
+        errors.append(typeError(path, expected: "a child component ID string"))
       }
 
     case .childList:
-      validateChildList(value, path: path, context: context, into: &errors)
+      validateType(
+        value,
+        type: childListType,
+        path: path,
+        context: context,
+        visitedRefs: [],
+        into: &errors
+      )
 
     case .action:
-      validateAction(value, path: path, context: context, into: &errors)
+      validateType(
+        value,
+        type: context.isV10 ? v10ActionType : v09ActionType,
+        path: path,
+        context: context,
+        visitedRefs: [],
+        into: &errors
+      )
 
     case .checkRule:
-      validateCheckRule(value, path: path, context: context, into: &errors)
+      validateType(
+        value,
+        type: context.isV10 ? v10CheckRuleType : v09CheckRuleType,
+        path: path,
+        context: context,
+        visitedRefs: [],
+        into: &errors
+      )
 
     case .accessibility:
-      validateAccessibilityValue(value, path: path, context: context, into: &errors)
+      validateType(
+        value,
+        type: context.isV10 ? v10AccessibilityType : v09AccessibilityType,
+        path: path,
+        context: context,
+        visitedRefs: [],
+        into: &errors
+      )
 
     case .rawJSONSchema(let raw):
-      if let compiled = try? Schema(rawSchema: raw, context: A2UISchemaRegistry.makeContext()) {
-        let result = compiled.validate(value)
-        if !result.isValid {
-          let message = result.errors?.first?.message ?? "Value failed schema validation."
-          appendError(path: path, message: message, context: context, into: &errors)
-        }
-      }
-    }
-  }
-
-  private static func validateObject(
-    _ dict: OrderedDictionary<String, JSONValue>,
-    properties: [ParameterDefinition],
-    additionalProperties: AdditionalProperties,
-    atLeastOneOf: [[String]],
-    path: String,
-    context: Context,
-    visitedRefs: Set<String>,
-    into errors: inout [A2UIErrorDetail]
-  ) {
-    for prop in properties where prop.required {
-      if dict[prop.name] == nil {
-        let propPath = joinPath(path, prop.name, separator: context.pathSeparator)
-        errors.append(
-          A2UIErrorDetail(
-            path: propPath,
-            code: "missing_field",
-            message: "\(context.messagePrefix) at '\(propPath)': "
-              + "Missing required property '\(prop.name)'."
-          )
-        )
-      }
-    }
-
-    for group in atLeastOneOf {
-      if !group.contains(where: { dict[$0] != nil }) {
-        let joined = group.joined(separator: ", ")
-        appendError(
+      errors.append(
+        contentsOf: validateRawSchema(
+          value,
+          rawSchema: raw,
           path: path,
-          message: "At least one of [\(joined)] is required.",
-          context: context,
-          into: &errors
+          allowDynamicExpressions: context.allowDynamicExpressions,
+          allowNullValues: context.allowNullValues,
+          isV10: context.isV10
         )
-      }
+      )
     }
+  }
 
-    let declared = Set(properties.map(\.name))
-    for (key, propValue) in dict where !declared.contains(key) {
-      let propPath = joinPath(path, key, separator: context.pathSeparator)
-      switch additionalProperties {
-      case .disallowed:
-        if !context.allowUnknownProperties {
-          appendError(
-            path: propPath,
-            message: "Unknown property '\(key)'.",
-            context: context,
-            into: &errors
+  // MARK: - Targeted Raw JSON Schema Escape Hatch
+
+  private static func validateRawSchema(
+    _ value: JSONValue,
+    rawSchema: JSONValue,
+    path: String,
+    allowDynamicExpressions: Bool,
+    allowNullValues: Bool,
+    isV10: Bool
+  ) -> [A2UIErrorDetail] {
+    if allowDynamicExpressions && isDynamicValueExpression(value, isV10: isV10, v09ReturnType: nil)
+    {
+      return []
+    }
+    var effectiveRaw = rawSchema
+    if allowNullValues && containsNull(value) {
+      effectiveRaw = acceptingNull(in: effectiveRaw)
+    }
+    if allowDynamicExpressions, case .object(let dict) = value,
+      containsDynamicExpression(in: value, isV10: isV10),
+      var rawObj = effectiveRaw.objectValue,
+      var props = rawObj["properties"]?.objectValue
+    {
+      for (key, argValue) in dict where props[key] != nil {
+        if isDynamicValueExpression(argValue, isV10: isV10, v09ReturnType: nil) {
+          props[key] = .object([:])
+        } else if case .array(let elems) = argValue,
+          elems.contains(where: { isDynamicValueExpression($0, isV10: isV10, v09ReturnType: nil) }),
+          var propObj = props[key]?.objectValue, let itemSchema = propObj["items"]
+        {
+          propObj["prefixItems"] = .array(
+            elems.map {
+              isDynamicValueExpression($0, isV10: isV10, v09ReturnType: nil)
+                ? .object([:])
+                : itemSchema
+            }
           )
+          propObj["items"] = .object([:])
+          props[key] = .object(propObj)
         }
-      case .allowed:
-        break
-      case .typed(let extraType):
-        validateType(
-          propValue,
-          against: extraType,
-          path: propPath,
-          context: context,
-          visitedRefs: visitedRefs,
-          into: &errors
-        )
       }
+      rawObj["properties"] = .object(props)
+      effectiveRaw = .object(rawObj)
     }
-
-    for prop in properties {
-      guard let propValue = dict[prop.name] else { continue }
-      validateType(
-        propValue,
-        against: prop.type,
-        path: joinPath(path, prop.name, separator: context.pathSeparator),
-        context: context,
-        visitedRefs: visitedRefs,
-        into: &errors
+    // Fail closed if raw JSON Schema fails to compile.
+    guard
+      let compiled = try? Schema(
+        rawSchema: effectiveRaw,
+        context: A2UISchemaRegistry.makeContext()
       )
+    else {
+      return [valueError(path, "failed to compile raw JSON Schema fragment")]
     }
+    let result = compiled.validate(value)
+    guard !result.isValid else { return [] }
+    return [valueError(path, result.errors?.first?.message ?? "does not match schema")]
   }
 
-  // MARK: - Protocol Component-Only Builtin Validators
-
-  private static func validateChildList(
-    _ value: JSONValue,
-    path: String,
-    context: Context,
-    into errors: inout [A2UIErrorDetail]
-  ) {
+  private static func containsNull(_ value: JSONValue) -> Bool {
     switch value {
-    case .array(let array):
-      for (index, item) in array.enumerated() where item.stringValue == nil {
-        appendError(
-          path: joinPath(path, "\(index)", separator: context.pathSeparator),
-          message: "ChildList array entries must be component ID strings.",
-          context: context,
-          into: &errors
-        )
-      }
+    case .null: return true
+    case .array(let items): return items.contains(where: containsNull)
+    case .object(let dict): return dict.values.contains(where: containsNull)
+    default: return false
+    }
+  }
+
+  private static func containsDynamicExpression(in value: JSONValue, isV10: Bool) -> Bool {
+    if isDynamicValueExpression(value, isV10: isV10, v09ReturnType: nil) { return true }
+    switch value {
     case .object(let dict):
-      let templateParams = [
-        ParameterDefinition.string("componentId", required: true),
-        ParameterDefinition.string("path", required: true),
-      ]
-      validateObject(
-        dict,
-        properties: templateParams,
-        additionalProperties: .disallowed,
-        atLeastOneOf: [],
-        path: path,
-        context: context,
-        visitedRefs: [],
-        into: &errors
-      )
+      return dict.values.contains(where: { containsDynamicExpression(in: $0, isV10: isV10) })
+    case .array(let items):
+      return items.contains(where: { containsDynamicExpression(in: $0, isV10: isV10) })
     default:
-      appendError(
-        path: path,
-        message: "ChildList must be an array of component IDs or a template object.",
-        context: context,
-        into: &errors
-      )
+      return false
     }
   }
 
-  private static func validateAction(
-    _ value: JSONValue,
-    path: String,
-    context: Context,
-    into errors: inout [A2UIErrorDetail]
-  ) {
-    guard let dict = value.objectValue else {
-      appendError(path: path, message: "Action must be an object.", context: context, into: &errors)
-      return
+  private static func acceptingNull(in schema: JSONValue) -> JSONValue {
+    guard case .object(var members) = schema else { return schema }
+    if let items = members["items"] { members["items"] = acceptingNull(in: items) }
+    if case .object(var props) = members["properties"] {
+      for (name, propSchema) in props { props[name] = acceptingNull(in: propSchema) }
+      members["properties"] = .object(props)
     }
-    let hasEvent = dict["event"] != nil
-    let hasCall = dict["functionCall"] != nil
-    guard hasEvent != hasCall else {
-      appendError(
-        path: path,
-        message: "Action must specify exactly one of 'event' or 'functionCall'.",
-        context: context,
-        into: &errors
-      )
-      return
-    }
-    if hasEvent {
-      var eventProps: [ParameterDefinition] = [
-        .string("name", required: true),
-        .object(
-          "context",
-          additionalProperties: .typed(.any(dynamic: true, nullable: false))
-        ),
-      ]
-      if context.isV10 {
-        eventProps.append(.string("userMessage", dynamic: true))
+    if members["enum"] == nil && members["const"] == nil {
+      switch members["type"] {
+      case .string(let name) where name != "null":
+        members["type"] = .array([.string(name), .string("null")])
+        return .object(members)
+      case .array(var types) where !types.contains(.string("null")):
+        types.append(.string("null"))
+        members["type"] = .array(types)
+        return .object(members)
+      case .string, .array:
+        return .object(members)
+      default:
+        break
       }
-      validateObject(
-        dict,
-        properties: [.object("event", properties: eventProps, required: true)],
-        additionalProperties: .disallowed,
-        atLeastOneOf: [],
-        path: path,
-        context: context,
-        visitedRefs: [],
-        into: &errors
-      )
-    } else {
-      validateObject(
-        dict,
-        properties: [.functionCall("functionCall", required: true)],
-        additionalProperties: .disallowed,
-        atLeastOneOf: [],
-        path: path,
-        context: context,
-        visitedRefs: [],
-        into: &errors
-      )
     }
+    return .object(["anyOf": .array([.object(members), .object(["type": .string("null")])])])
   }
 
-  private static func validateCheckRule(
-    _ value: JSONValue,
-    path: String,
-    context: Context,
-    into errors: inout [A2UIErrorDetail]
-  ) {
-    guard let dict = value.objectValue else {
-      appendError(
-        path: path,
-        message: "CheckRule must be an object.",
-        context: context,
-        into: &errors
-      )
-      return
-    }
-    let conditionType: TypeDefinition =
-      context.isV10
-      ? .union(variants: [.dataBinding(), .functionCall()], exclusive: true)
-      : .boolean(dynamic: true)
-    let params = [
-      ParameterDefinition(name: "condition", type: conditionType, required: true),
-      ParameterDefinition.string("message", required: !context.isV10),
-    ]
-    validateObject(
-      dict,
-      properties: params,
-      additionalProperties: .disallowed,
-      atLeastOneOf: [],
-      path: path,
-      context: context,
-      visitedRefs: [],
-      into: &errors
-    )
-  }
-
-  private static func validateAccessibilityValue(
-    _ value: JSONValue,
-    path: String,
-    context: Context,
-    into errors: inout [A2UIErrorDetail]
-  ) {
-    guard let dict = value.objectValue else {
-      appendError(
-        path: path,
-        message: "AccessibilityAttributes must be an object.",
-        context: context,
-        into: &errors
-      )
-      return
-    }
-    var params: [ParameterDefinition] = [
-      .string("label", dynamic: true),
-      .string("description", dynamic: true),
-    ]
-    let additional: AdditionalProperties
-    if context.isV10 {
-      params.append(.enum("live", values: ["off", "polite", "assertive"]))
-      params.append(.boolean("hidden", dynamic: true))
-      additional = .disallowed
-    } else {
-      additional = .allowed
-    }
-    validateObject(
-      dict,
-      properties: params,
-      additionalProperties: additional,
-      atLeastOneOf: [],
-      path: path,
-      context: context,
-      visitedRefs: [],
-      into: &errors
-    )
-  }
-
-  // MARK: - Dynamic Expression Matching
+  // MARK: - Dynamic Expression & Format Helpers
 
   private static func isDynamicValueExpression(
     _ value: JSONValue,
@@ -1148,9 +1023,9 @@ enum ModelPayloadValidator {
   }
 
   private static func isDataBinding(_ value: JSONValue, isV10: Bool) -> Bool {
-    guard let dict = value.objectValue, dict.count == 1 else { return false }
-    let key = isV10 ? "@path" : "path"
-    return dict[key]?.stringValue != nil
+    guard case .object(let dict) = value, dict.count == 1 else { return false }
+    if isV10 { return dict["@path"]?.stringValue != nil }
+    return dict["path"]?.stringValue != nil
   }
 
   private static func isFunctionCall(
@@ -1158,238 +1033,168 @@ enum ModelPayloadValidator {
     isV10: Bool,
     v09ReturnType: String?
   ) -> Bool {
-    guard let dict = value.objectValue else { return false }
+    guard case .object(let dict) = value else { return false }
     if isV10 {
-      guard dict["@call"]?.stringValue != nil else { return false }
-      for (key, member) in dict {
-        switch key {
-        case "@call":
-          break
-        case "catalogId":
-          guard member.stringValue != nil else { return false }
-        case "args":
-          guard member.objectValue != nil else { return false }
-        default:
-          return false
-        }
-      }
+      guard let callName = dict["@call"]?.stringValue, !callName.isEmpty else { return false }
+      let allowedKeys: Set<String> = ["@call", "args", "catalogId"]
+      guard dict.keys.allSatisfy({ allowedKeys.contains($0) }) else { return false }
+      if let args = dict["args"], args.objectValue == nil { return false }
+      if let cat = dict["catalogId"], cat.stringValue == nil { return false }
       return true
     }
-
-    guard dict["call"]?.stringValue != nil else { return false }
-    for (key, member) in dict {
-      switch key {
-      case "call":
-        break
-      case "args":
-        guard member.objectValue != nil else { return false }
-      case "returnType":
-        guard let rt = member.stringValue, v09ValidReturnTypes.contains(rt) else { return false }
-        if let expected = v09ReturnType, rt != expected {
-          return false
-        }
-      default:
-        return false
-      }
+    guard let callName = dict["call"]?.stringValue, !callName.isEmpty else { return false }
+    let allowedKeys: Set<String> = ["call", "args", "returnType"]
+    guard dict.keys.allSatisfy({ allowedKeys.contains($0) }) else { return false }
+    if let args = dict["args"], args.objectValue == nil { return false }
+    if let rt = dict["returnType"] {
+      guard let rtStr = rt.stringValue else { return false }
+      if let expected = v09ReturnType, rtStr != expected && rtStr != "any" { return false }
     }
     return true
   }
 
-  private static func isAnyDynamicExpression(_ value: JSONValue) -> Bool {
-    guard let dict = value.objectValue else { return false }
-    return dict["path"] != nil
-      || dict["@path"] != nil
-      || dict["call"] != nil
-      || dict["@call"] != nil
-      || dict["function"] != nil
-  }
-
-  // MARK: - Format & Regex Validators
-
-  private static func matchesRegex(_ string: String, pattern: String) -> Bool {
+  private static func matchesRegex(_ value: String, pattern: String) -> Bool {
     guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
-    let range = NSRange(string.startIndex..<string.endIndex, in: string)
-    return regex.firstMatch(in: string, options: [], range: range) != nil
+    let range = NSRange(value.startIndex..<value.endIndex, in: value)
+    return regex.firstMatch(in: value, options: [], range: range) != nil
   }
 
-  private static func matchesFormat(_ string: String, format: String) -> Bool {
+  private static func matchesFormat(_ value: String, format: String) -> Bool {
     switch format {
-    case "date":
-      return isValidRFC3339Date(string)
-    case "time":
-      return isValidRFC3339Time(string)
-    case "date-time":
-      return isValidRFC3339DateTime(string)
-    case "uri":
-      return isValidRFC3986URI(string)
-    case "email":
-      return isValidEmail(string)
-    default:
-      return true
+    case "date": return isValidRFC3339Date(value)
+    case "time": return isValidRFC3339Time(value, requireTimezone: false)
+    case "date-time": return isValidRFC3339DateTime(value)
+    case "uri": return isValidURI(value)
+    case "email": return isValidEmail(value)
+    default: return true
     }
   }
 
-  /// Validates RFC 3339 `full-date` (`YYYY-MM-DD`) including calendar month and leap-year bounds.
-  private static func isValidRFC3339Date(_ string: String) -> Bool {
-    let bytes = Array(string.utf8)
-    guard bytes.count == 10, bytes[4] == UInt8(ascii: "-"), bytes[7] == UInt8(ascii: "-") else {
-      return false
-    }
-    guard let year = parseASCIIDigits(bytes[0..<4]),
-      let month = parseASCIIDigits(bytes[5..<7]),
-      let day = parseASCIIDigits(bytes[8..<10])
-    else {
-      return false
-    }
-    guard (1...12).contains(month) else { return false }
-    let maxDay = daysInMonth(month, year: year)
-    return (1...maxDay).contains(day)
+  private static func isValidRFC3339Date(_ value: String) -> Bool {
+    let bytes = Array(value.utf8)
+    guard bytes.count == 10, bytes[4] == 45, bytes[7] == 45 else { return false }
+    guard
+      let year = parseDigits(bytes, start: 0, count: 4),
+      let month = parseDigits(bytes, start: 5, count: 2),
+      let day = parseDigits(bytes, start: 8, count: 2),
+      (1...12).contains(month)
+    else { return false }
+    let isLeap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    let daysInMonth = [0, 31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    return (1...daysInMonth[month]).contains(day)
   }
 
-  /// Validates ISO-8601 / RFC 3339 time (`HH:MM:SS(.frac)?(Z|[+-]HH:MM)?`).
-  private static func isValidRFC3339Time(_ string: String) -> Bool {
-    let bytes = Array(string.utf8)
-    guard bytes.count >= 8, bytes[2] == UInt8(ascii: ":"), bytes[5] == UInt8(ascii: ":") else {
-      return false
-    }
-    guard let hour = parseASCIIDigits(bytes[0..<2]),
-      let minute = parseASCIIDigits(bytes[3..<5]),
-      let second = parseASCIIDigits(bytes[6..<8])
-    else {
-      return false
-    }
-    guard (0...23).contains(hour), (0...59).contains(minute), (0...60).contains(second) else {
-      return false
-    }
+  private static func isValidRFC3339Time(_ value: String, requireTimezone: Bool) -> Bool {
+    let bytes = Array(value.utf8)
+    guard bytes.count >= 8, bytes[2] == 58, bytes[5] == 58 else { return false }
+    guard
+      let hour = parseDigits(bytes, start: 0, count: 2),
+      let minute = parseDigits(bytes, start: 3, count: 2),
+      let second = parseDigits(bytes, start: 6, count: 2),
+      (0...23).contains(hour),
+      (0...59).contains(minute),
+      (0...60).contains(second)
+    else { return false }
 
     var idx = 8
-    if idx < bytes.count && bytes[idx] == UInt8(ascii: ".") {
+    if idx < bytes.count && bytes[idx] == 46 {
       idx += 1
       let fracStart = idx
-      while idx < bytes.count && isASCIIDigit(bytes[idx]) {
-        idx += 1
-      }
+      while idx < bytes.count && (48...57).contains(bytes[idx]) { idx += 1 }
       guard idx > fracStart else { return false }
     }
 
+    var offsetMinutes: Int?
     if idx == bytes.count {
-      return true
+      if requireTimezone { return false }
+    } else if bytes[idx] == 90 || bytes[idx] == 122 {
+      guard idx + 1 == bytes.count else { return false }
+      offsetMinutes = 0
+    } else if bytes[idx] == 43 || bytes[idx] == 45 {
+      guard idx + 6 == bytes.count, bytes[idx + 3] == 58 else { return false }
+      guard
+        let tzH = parseDigits(bytes, start: idx + 1, count: 2),
+        let tzM = parseDigits(bytes, start: idx + 4, count: 2),
+        (0...23).contains(tzH), (0...59).contains(tzM)
+      else { return false }
+      let sign = bytes[idx] == 43 ? 1 : -1
+      offsetMinutes = sign * (tzH * 60 + tzM)
+    } else {
+      return false
     }
-    let tzByte = bytes[idx]
-    if tzByte == UInt8(ascii: "Z") || tzByte == UInt8(ascii: "z") {
-      return idx + 1 == bytes.count
-    }
-    if tzByte == UInt8(ascii: "+") || tzByte == UInt8(ascii: "-") {
-      guard idx + 6 == bytes.count, bytes[idx + 3] == UInt8(ascii: ":") else { return false }
-      guard let tzHour = parseASCIIDigits(bytes[(idx + 1)..<(idx + 3)]),
-        let tzMinute = parseASCIIDigits(bytes[(idx + 4)..<(idx + 6)])
-      else {
-        return false
-      }
-      return (0...23).contains(tzHour) && (0...59).contains(tzMinute)
-    }
-    return false
-  }
 
-  /// Validates ISO-8601 / RFC 3339 `date-time` (`<full-date>[Tt ]<time>`).
-  private static func isValidRFC3339DateTime(_ string: String) -> Bool {
-    let bytes = Array(string.utf8)
-    guard bytes.count >= 19 else { return false }
-    let sep = bytes[10]
-    guard sep == UInt8(ascii: "T") || sep == UInt8(ascii: "t") || sep == UInt8(ascii: " ") else {
-      return false
-    }
-    let datePart = String(decoding: bytes[0..<10], as: UTF8.self)
-    let timePart = String(decoding: bytes[11...], as: UTF8.self)
-    return isValidRFC3339Date(datePart) && isValidRFC3339Time(timePart)
-  }
-
-  /// Validates RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`).
-  private static func isValidRFC3986URI(_ string: String) -> Bool {
-    guard let colonIdx = string.firstIndex(of: ":"), colonIdx > string.startIndex else {
-      return false
-    }
-    let scheme = string[..<colonIdx]
-    guard let first = scheme.unicodeScalars.first,
-      (first >= "A" && first <= "Z") || (first >= "a" && first <= "z")
-    else {
-      return false
-    }
-    for scalar in scheme.unicodeScalars.dropFirst() {
-      let ok =
-        (scalar >= "A" && scalar <= "Z")
-        || (scalar >= "a" && scalar <= "z")
-        || (scalar >= "0" && scalar <= "9")
-        || scalar == "+" || scalar == "-" || scalar == "."
-      guard ok else { return false }
-    }
-    let remainder = string[string.index(after: colonIdx)...]
-    for scalar in remainder.unicodeScalars {
-      if scalar.properties.isWhitespace || scalar.value < 0x21 {
-        return false
-      }
+    // Leap second (60) is only valid at 23:59 UTC.
+    if second == 60 {
+      let utcMinutes = ((hour * 60 + minute - (offsetMinutes ?? 0)) % 1440 + 1440) % 1440
+      guard utcMinutes == 23 * 60 + 59 else { return false }
     }
     return true
   }
 
-  private static func isValidEmail(_ string: String) -> Bool {
-    let parts = string.split(separator: "@", omittingEmptySubsequences: false)
-    guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return false }
-    return parts[1].contains(".")
-      && !string.unicodeScalars.contains(where: \.properties.isWhitespace)
+  private static func isValidRFC3339DateTime(_ value: String) -> Bool {
+    guard value.count >= 20 else { return false }
+    let sepIdx = value.index(value.startIndex, offsetBy: 10)
+    let sep = value[sepIdx]
+    guard sep == "T" || sep == "t" else { return false }
+    let datePart = String(value[..<sepIdx])
+    let timePart = String(value[value.index(after: sepIdx)...])
+    return isValidRFC3339Date(datePart) && isValidRFC3339Time(timePart, requireTimezone: true)
   }
 
-  private static func isASCIIDigit(_ byte: UInt8) -> Bool {
-    byte >= UInt8(ascii: "0") && byte <= UInt8(ascii: "9")
+  private static func isValidURI(_ value: String) -> Bool {
+    guard !value.isEmpty,
+      !value.contains(where: { $0.isWhitespace || $0.isNewline }),
+      let colon = value.firstIndex(of: ":")
+    else { return false }
+    let scheme = value[..<colon]
+    guard let first = scheme.first, first.isASCII && first.isLetter else { return false }
+    guard
+      scheme.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) })
+    else { return false }
+    return URL(string: value) != nil
   }
 
-  private static func parseASCIIDigits(_ slice: ArraySlice<UInt8>) -> Int? {
-    guard !slice.isEmpty else { return nil }
-    var total = 0
-    for byte in slice {
-      guard isASCIIDigit(byte) else { return nil }
-      total = total * 10 + Int(byte - UInt8(ascii: "0"))
+  private static func isValidEmail(_ value: String) -> Bool {
+    let parts = value.split(separator: "@", omittingEmptySubsequences: false)
+    guard parts.count == 2 else { return false }
+    let local = parts[0]
+    let domain = parts[1]
+    guard !local.isEmpty, !domain.isEmpty,
+      !local.hasPrefix("."), !local.hasSuffix("."), !local.contains(".."),
+      !local.contains(where: { $0.isWhitespace || $0.isNewline }),
+      !domain.contains(where: { $0.isWhitespace || $0.isNewline })
+    else { return false }
+    let labels = domain.split(separator: ".", omittingEmptySubsequences: false)
+    guard labels.count >= 2 else { return false }
+    return labels.allSatisfy { label in
+      !label.isEmpty && !label.hasPrefix("-") && !label.hasSuffix("-")
+        && label.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
     }
-    return total
   }
 
-  private static func daysInMonth(_ month: Int, year: Int) -> Int {
-    switch month {
-    case 1, 3, 5, 7, 8, 10, 12:
-      return 31
-    case 4, 6, 9, 11:
-      return 30
-    case 2:
-      let isLeap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
-      return isLeap ? 29 : 28
-    default:
-      return 0
+  private static func parseDigits(_ bytes: [UInt8], start: Int, count: Int) -> Int? {
+    var result = 0
+    for i in start..<(start + count) {
+      let b = bytes[i]
+      guard b >= 48 && b <= 57 else { return nil }
+      result = result * 10 + Int(b - 48)
     }
+    return result
   }
 
-  // MARK: - Helpers
-
-  private static func jsonScalarEquals(_ lhs: JSONValue, _ rhs: JSONValue) -> Bool {
-    if let lNum = lhs.doubleValue, let rNum = rhs.doubleValue {
-      return lNum == rNum
-    }
-    return MetadataValidator.jsonEquals(lhs, rhs)
+  private static func typeError(_ path: String, expected: String) -> A2UIErrorDetail {
+    A2UIErrorDetail(
+      path: path,
+      code: "type_mismatch",
+      message: path.isEmpty ? "Expected \(expected)" : "\(path): expected \(expected)"
+    )
   }
 
-  private static func joinPath(_ base: String, _ segment: String, separator: String) -> String {
-    base.isEmpty ? segment : "\(base)\(separator)\(segment)"
-  }
-
-  private static func appendError(
-    path: String,
-    message: String,
-    context: Context,
-    into errors: inout [A2UIErrorDetail]
-  ) {
-    let formatted =
-      path.isEmpty
-      ? "\(context.messagePrefix): \(message)"
-      : "\(context.messagePrefix) at '\(path)': \(message)"
-    errors.append(A2UIErrorDetail(path: path, code: "invalid_value", message: formatted))
+  private static func valueError(_ path: String, _ detail: String) -> A2UIErrorDetail {
+    A2UIErrorDetail(
+      path: path,
+      code: "invalid_value",
+      message: path.isEmpty ? detail : "\(path): \(detail)"
+    )
   }
 }

@@ -119,4 +119,18 @@ public struct ComponentDefinition: Sendable, Equatable {
   public var isCanonical: Bool {
     rawJSONSchema == nil && !parameters.contains { $0.type.containsRawJSONSchema }
   }
+
+  public static func == (lhs: ComponentDefinition, rhs: ComponentDefinition) -> Bool {
+    lhs.name == rhs.name
+      && lhs.description == rhs.description
+      && lhs.isCheckable == rhs.isCheckable
+      && lhs.parameters == rhs.parameters
+      && lhs.atLeastOneOf == rhs.atLeastOneOf
+      && lhs.allowedParents == rhs.allowedParents
+      && lhs.allowedChildren == rhs.allowedChildren
+      && lhs.metadata == rhs.metadata
+      && lhs.deprecated == rhs.deprecated
+      && lhs.deprecatedReason == rhs.deprecatedReason
+      && lhs.rawJSONSchema == rhs.rawJSONSchema
+  }
 }

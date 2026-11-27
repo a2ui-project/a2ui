@@ -186,13 +186,35 @@ struct BasicCatalogDocumentRoundTripTests {
     #expect(loaded.components.count == 18)
     #expect(loaded.surfaceProperties?.property(named: "primaryColor") != nil)
 
+    // v0.9.1 function returnType lives at `properties.returnType.const`.
+    #expect(loaded.functions["required"]?.api.returnType == .boolean)
+    #expect(loaded.functions["formatString"]?.api.returnType == .string)
+    #expect(loaded.functions["openUrl"]?.api.returnType == .void)
+
+    // v0.9.1 CatalogComponentCommon (`weight`) is appended after the component's own parameters.
+    #expect(
+      loaded.components["Text"]?.definition.parameters.map(\.name) == ["text", "variant", "weight"])
+
     let doc = try loaded.toDocument()
     #expect(doc["protocolVersion"] == .string("0.9.1"))
     let fromDoc = try Catalog.fromDocument(doc)
-    #expect(fromDoc.model.protocolVersion == "0.9.1")
-    #expect(fromDoc.model.components == loaded.model.components)
-    #expect(fromDoc.model.functions == loaded.model.functions)
-    #expect(fromDoc.model.surfaceProperties == loaded.model.surfaceProperties)
+    #expect(fromDoc.model == loaded.model)
     #expect(try fromDoc.toDocument() == doc)
+  }
+
+  @Test func v10McpCatalogJSONRoundTripsThroughCatalogDocument() throws {
+    let rawJSON = try Self.loadRepoJSON(relativePath: "catalogs/mcp/v1/catalog.json")
+    let loaded = try Catalog.fromJSON(rawJSON)
+    #expect(loaded.components["McpApp"]?.definition.isCanonical == true)
+    #expect(loaded.functions["callMcpTool"]?.api.definition.isCanonical == true)
+
+    let doc = try loaded.toDocument()
+    let fromDoc = try Catalog.fromDocument(doc)
+    #expect(fromDoc.model == loaded.model)
+    #expect(try fromDoc.toDocument() == doc)
+
+    let reJSON = fromDoc.toJSON(protocolVersion: .v10)
+    let fromReJSON = try Catalog.fromJSON(reJSON)
+    #expect(fromReJSON.model == loaded.model)
   }
 }
