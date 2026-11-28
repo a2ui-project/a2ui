@@ -48,7 +48,7 @@ export const TemplateChildListSchema = z
 export type TemplateChildList = z.infer<typeof TemplateChildListSchema>;
 
 export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ComponentIdSchema;
   }
   return ComponentIdSchema.describe(`REF:#/$defs/ComponentId|${options.description}`);
@@ -85,7 +85,7 @@ export function dynamicStringList(description?: string) {
 }
 
 export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ChildListSchema;
   }
   return ChildListSchema.describe(`REF:#/$defs/ChildList|${options.description}`);
