@@ -512,7 +512,7 @@ export interface MessageProcessorOptions {
   version?: ProtocolVersion;
   /** Adapter registry to resolve messages against. Defaults to the built-in factory. */
   adapterRegistry?: VersionAdapterResolver;
-  /** Validation strictness rules applied to component and topology checks. */
+  /** Optional validation rules applied to component and topology checks. Omitting it skips topology validation and unknown-element rejection; see ValidationConfig for omitted-flag defaults. */
   validationConfig?: ValidationConfig;
   /** Receives outbound messages bound for the agent. Required before `callAgentFunction` can be used. */
   outboundListener?: OutboundMessageListener;
@@ -823,20 +823,24 @@ rendererProcessor.processMessages(incomingMessagesFromAgent);
 const agentProcessor = new MessageProcessor({
   catalogs: [negotiatedCatalog], // Single negotiated catalog enforces catalog compliance
   actionHandler: undefined, // Agent does not render DOM elements or handle clicks
+  // STRICT_VALIDATION fits surfaces delivered whole in one message that never
+  // replace a parent's children. Otherwise use the two-phase streaming pattern
+  // under Graph Validation.
+  validationConfig: STRICT_VALIDATION,
 });
 // Same entry point as the renderer: the processor is kept for the session, so
 // each payload is checked against the state the previous ones built.
 agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
 ```
 
-| Execution Aspect              | Renderer                                                                                                               | Agent                                                                      |
-| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                                  | Optional helper for checking and converting outbound messages.             |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.                    | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
-| **Entry Point**               | `processMessages`: applies the payload and checks each message against the surface it joins.                           | `processMessages`, under the default strict `ValidationConfig`.            |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                        | Omitted or `undefined` (`actionHandler: undefined`).                       |
-| **Catalog Compliance**        | Matches `createSurface.catalogId`, component `@catalogId`, and function `catalogId` against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                              | Verifies model-generated payloads and data path references before sending. |
+| Execution Aspect              | Renderer                                                                                                                                                                                              | Agent                                                                                                                                                                                                                                                                                                                                                                                            |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                                                                                                                 | Optional helper for checking and converting outbound messages.                                                                                                                                                                                                                                                                                                                                   |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.                                                                                                   | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).                                                                                                                                                                                                                                                                                                                              |
+| **Entry Point**               | `processMessages`: applies each message against the surface it joins; omitting `validationConfig` skips unknown-element rejection, and skips topology validation so surfaces can stream in any order. | `processMessages`: a `MessageProcessor` built without `validationConfig` likewise skips topology validation and unknown-element rejection; pass an explicit `ValidationConfig` (`STRICT_VALIDATION` for surfaces delivered whole in one message that never replace a parent's children, or the [two-phase streaming pattern](#graph-validation-runs-before-mutation-against-a-candidate-graph)). |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                                                                                                       | Omitted or `undefined` (`actionHandler: undefined`).                                                                                                                                                                                                                                                                                                                                             |
+| **Catalog Compliance**        | Matches `createSurface.catalogId`, component `@catalogId`, and function `catalogId` against renderer's supported list.                                                                                | Fails if model generates payload referencing un-negotiated catalog.                                                                                                                                                                                                                                                                                                                              |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                                                                                                             | Verifies model-generated payloads and data path references before sending.                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
@@ -852,10 +856,14 @@ Validation in `a2ui_core` is split into two complementary systems:
 ```typescript
 export interface ValidationConfig {
   readonly targetVersion?: string;
+  /** Root component ID for topology checks. Overrides `SurfaceModel.rootId` when set; when omitted, uses the surface's root ID (default `"root"`). */
+  readonly rootId?: string;
   readonly allowOrphanComponents?: boolean;
   readonly allowDanglingReferences?: boolean;
   readonly allowMissingRoot?: boolean;
   readonly allowUnknownElements?: boolean;
+  /** Maximum component graph traversal depth. When omitted, defaults to `MAX_GLOBAL_DEPTH` (`50`). */
+  readonly maxDepth?: number;
   readonly allowedMessages?: string[];
 }
 
@@ -887,6 +895,8 @@ export class PayloadValidator {
   validateTheme(surfaceProperties: Record<string, any> | null): void;
 }
 ```
+
+Inside a supplied `ValidationConfig`, any omitted boolean flag defaults to `false` (strict).
 
 `allowUnknownElements` covers functions as well as components: under `false`, a call to a function that the catalog it resolves to doesn't declare is rejected as an unrecognized function. From v1.0 such a call would otherwise be [routed to the agent](#rpc-execution-lifecycle--safeguards), so a renderer that validates strictly and uses agent-side functions has two options. It can set `allowUnknownElements: true`, which keeps the other checks. Or it can declare the agent functions it expects as schema-only entries in the catalog the calls resolve to, which keeps every check, including argument validation, and still routes the calls, because a schema-only function has no local implementation. Supplying no `ValidationConfig` at all skips these checks, so calls to undeclared functions are accepted and routed.
 
@@ -932,7 +942,12 @@ Graph validation is instead a distinct phase that `MessageProcessor` completes b
 
 Only after all four pass does the processor apply the batch. Validating a merged candidate rather than the live model is what makes an update atomic: a batch that would introduce a cycle or an orphan is rejected whole, and the surface keeps its last valid graph. It also avoids false rejections. Validating incrementally as each component landed would fail any batch in which a parent arrives before the child it references, which under streaming is the normal arrival order.
 
-The entire phase is skipped when no `ValidationConfig` is supplied. Supplying no config is the explicit opt-out for renderers that trust their agent and want the lowest per-message cost.
+When no `ValidationConfig` is supplied on `MessageProcessor` (for either a renderer or an agent), topology validation (step 4: root presence, dangling references, cycles and depth, and reachability from the root) and unknown component or function rejection (`allowUnknownElements`) are skipped. Duplicate IDs within a batch (step 1), composition constraints (step 3), and nested function-call catalog resolution (see Catalog Scope) still run. Whether declared component property schemas and v1.0 nested-call arguments (step 2) are checked without a config is implementation-defined. Skipping topology checks by default lets a surface stream across multiple messages in any order and gives callers that trust their producer the lowest per-message graph cost. Strict topology checking is opt-in through `ValidationConfig`.
+
+Because the protocol lets a surface arrive across multiple messages in any order and defines no single-component delete message, running `STRICT_VALIDATION` on every message breaks cross-message forward references and updates that replace a parent's children (leaving earlier committed components unreachable). Callers that validate multi-message surfaces use two phases:
+
+1. Per message, supply a `ValidationConfig` with `allowDanglingReferences: true`, `allowMissingRoot: true`, `allowOrphanComponents: true`, and `allowUnknownElements: false`. This rejects duplicate batch IDs, unknown components and functions, property and call schema violations, composition constraint violations, and cycles (including unrooted subgraphs before the root arrives), while deferring root presence, cross-message forward references, and reachability. Depth violations on rooted tree paths are caught in phase 2 (where `allowMissingRoot` is `false` and traversal starts at `surface.rootId`). Under phase 1 (`allowMissingRoot: true`), a single-`visited`-set DFS over sorted IDs is permitted, so depth violations on chains whose descendants sort before their ancestors (including rooted paths) are not guaranteed to be caught until phase 2 (see `detectCycles`).
+2. At a completeness boundary (once all messages of a payload, or of one streamed response, have been applied), validate each touched surface that holds at least one component: call `validateTopology` with `rootId: surface.rootId`, root presence and dangling-reference checks enabled, and `allowOrphanComponents: true`, then call `detectCycles` with `rootId: surface.rootId` and without `allowMissingRoot` to obtain the set reachable from `surface.rootId`. Raise `A2uiIntegrityError` naming the first lexicographically sorted component added or replaced since the surface's tree was last checked that is absent from that reachable set. Earlier committed components left unreachable when a later update rewrote their parent's children remain accepted. Empty surfaces (no components yet) and deleted surfaces are skipped. Because phase 2 runs after each message has been applied, a failed boundary check does not count as checking the surface and leaves the processor holding those components until handled: the caller either restores the surface to its state at the previous boundary or, when the messages were already emitted and cannot be rolled back, clears the surface's changed-component set so those already-emitted unreachable components are not held against later boundaries (no protocol message removes a single component). Root presence and dangling references remain checked across the whole surface at every boundary.
 
 The non-throwing `validateReferences()` accessor sits outside this pipeline. It exists for consumers that want to inspect a committed surface and report problems rather than abort, and the processor never calls it.
 
@@ -1004,8 +1019,8 @@ The matrix below details the specific validation checks, their responsible compo
 | **Graph Integrity**      | Duplicate component IDs within surface                                                               | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
 | **Graph Integrity**      | Missing root component (`id="root"`)                                                                 | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                       | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                     | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`                       |
+| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                       | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                     | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
 | **Graph Topology**       | Unreachable / orphan component detection                                                             | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
 | **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                       | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
 | **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)              | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
@@ -1390,9 +1405,18 @@ class SurfaceComponentsModel {
   validateTopology(options?: ValidationConfig): void;
 
   /**
-   * Walks the graph depth-first from the root, raising A2uiRecursionError on a self-reference,
-   * a back edge, or a traversal deeper than the global limit. Returns the reachable set, which
-   * validateTopology reuses for its orphan check.
+   * Checks self-references across all components regardless of `allowMissingRoot`, then walks
+   * the graph depth-first, raising A2uiRecursionError on a self-reference, a back edge, or a
+   * traversal deeper than the global limit. When `allowMissingRoot` is false, multi-node
+   * traversal starts at `rootId`. When `allowMissingRoot` is true, traversal visits every
+   * component in the graph (not only those reachable from `rootId`) so cycles in unrooted
+   * subgraphs are rejected before the root arrives. A single-`visited`-set DFS over sorted
+   * IDs is permitted here (order-independent subtree-height tracking is not required), so
+   * depth violations on chains whose descendants sort before their ancestors (including
+   * rooted paths) are not guaranteed to be rejected until `detectCycles` runs with
+   * `allowMissingRoot` false. Returns all component IDs when `allowMissingRoot` is true,
+   * or only the IDs reachable from `rootId` when `allowMissingRoot` is false (which
+   * validateTopology reuses for its orphan check).
    */
   detectCycles(options?: ValidationConfig): Set<string>;
 
