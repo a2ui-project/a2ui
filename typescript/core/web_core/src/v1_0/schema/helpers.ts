@@ -48,47 +48,47 @@ export const TemplateChildListSchema = z
 export type TemplateChildList = z.infer<typeof TemplateChildListSchema>;
 
 export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ComponentIdSchema;
   }
-  return ComponentIdSchema.describe(`REF:#/$defs/ComponentId|\${options.description}`);
+  return ComponentIdSchema.describe(`REF:#/$defs/ComponentId|${options.description}`);
 }
 
 export function dynamicString(description?: string) {
   return description
-    ? DynamicStringSchema.describe(`REF:#/$defs/DynamicString|\${description}`)
+    ? DynamicStringSchema.describe(`REF:#/$defs/DynamicString|${description}`)
     : DynamicStringSchema;
 }
 
 export function dynamicNumber(description?: string) {
   return description
-    ? DynamicNumberSchema.describe(`REF:#/$defs/DynamicNumber|\${description}`)
+    ? DynamicNumberSchema.describe(`REF:#/$defs/DynamicNumber|${description}`)
     : DynamicNumberSchema;
 }
 
 export function dynamicBoolean(description?: string) {
   return description
-    ? DynamicBooleanSchema.describe(`REF:#/$defs/DynamicBoolean|\${description}`)
+    ? DynamicBooleanSchema.describe(`REF:#/$defs/DynamicBoolean|${description}`)
     : DynamicBooleanSchema;
 }
 
 export function dynamicValue(description?: string) {
   return description
-    ? DynamicValueSchema.describe(`REF:#/$defs/DynamicValue|\${description}`)
+    ? DynamicValueSchema.describe(`REF:#/$defs/DynamicValue|${description}`)
     : DynamicValueSchema;
 }
 
 export function dynamicStringList(description?: string) {
   return description
-    ? DynamicStringListSchema.describe(`REF:#/$defs/DynamicStringList|\${description}`)
+    ? DynamicStringListSchema.describe(`REF:#/$defs/DynamicStringList|${description}`)
     : DynamicStringListSchema;
 }
 
 export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ChildListSchema;
   }
-  return ChildListSchema.describe(`REF:#/$defs/ChildList|\${options.description}`);
+  return ChildListSchema.describe(`REF:#/$defs/ChildList|${options.description}`);
 }
 
 /**

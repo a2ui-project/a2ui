@@ -42,11 +42,11 @@ export const MAX_FUNCTION_CALL_ARGS = 1_000;
  * @returns The configured ComponentId schema.
  */
 export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ComponentIdSchema;
   }
   return ComponentIdSchema.describe(
-    `REF:common_types.json#/$defs/ComponentId|\${options.description}`,
+    `REF:common_types.json#/$defs/ComponentId|${options.description}`,
   );
 }
 
@@ -57,10 +57,10 @@ export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdS
  * @returns The configured ChildList schema.
  */
 export function childList(options: RefSchemaOptions = {}): typeof ChildListSchema {
-  if (options.description === undefined) {
+  if (!options.description) {
     return ChildListSchema;
   }
-  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|\${options.description}`);
+  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${options.description}`);
 }
 
 /**
