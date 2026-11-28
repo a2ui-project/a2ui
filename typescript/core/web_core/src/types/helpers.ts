@@ -46,7 +46,7 @@ export function componentId(options: RefSchemaOptions = {}): typeof ComponentIdS
     return ComponentIdSchema;
   }
   return ComponentIdSchema.describe(
-    `REF:common_types.json#/$defs/ComponentId|\${options.description}`,
+    `REF:common_types.json#/$defs/ComponentId|${options.description}`,
   );
 }
 
@@ -60,7 +60,7 @@ export function childList(options: RefSchemaOptions = {}): typeof ChildListSchem
   if (options.description === undefined) {
     return ChildListSchema;
   }
-  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|\${options.description}`);
+  return ChildListSchema.describe(`REF:common_types.json#/$defs/ChildList|${options.description}`);
 }
 
 /**
